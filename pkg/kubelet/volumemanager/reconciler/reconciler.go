@@ -584,14 +584,16 @@ func getVolumesFromPodDir(podDir string) ([]podVolume, error) {
 			pluginName := volumeDir.Name()
 			volumePluginPath := path.Join(volumesDir, pluginName)
 
-			volumePluginDirs, err := utilfile.ReadDirNoStat(volumePluginPath)
+			volumePluginDirs, err := utilfile.ReadDirNamesNoExit(volumePluginPath)
 			if err != nil {
 				glog.Errorf("Could not read volume plugin directory %q: %v", volumePluginPath, err)
 				continue
 			}
 
 			unescapePluginName := strings.UnescapeQualifiedNameForDisk(pluginName)
-			for _, volumeName := range volumePluginDirs {
+
+			for _, volumeNameDir := range volumePluginDirs {
+				volumeName := volumeNameDir
 				mountPath := path.Join(volumePluginPath, volumeName)
 				volumes = append(volumes, podVolume{
 					podName:        volumetypes.UniquePodName(podName),
@@ -600,7 +602,6 @@ func getVolumesFromPodDir(podDir string) ([]podVolume, error) {
 					pluginName:     unescapePluginName,
 				})
 			}
-
 		}
 	}
 	glog.V(10).Infof("Get volumes from pod directory %q %+v", podDir, volumes)
