@@ -682,6 +682,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		kubeDeps.ContainerManager.InternalContainerLifecycle(),
 		legacyLogProvider,
 		klet.runtimeClassManager,
+		kubeCfg.ExperimentalCpuConversionFactor,
 	)
 	if err != nil {
 		return nil, err
@@ -1465,6 +1466,7 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 func (kl *Kubelet) syncPod(o syncPodOptions) error {
 	// pull out the required options
 	pod := o.pod
+
 	mirrorPod := o.mirrorPod
 	podStatus := o.podStatus
 	updateType := o.updateType
