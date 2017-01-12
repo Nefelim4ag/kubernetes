@@ -123,6 +123,9 @@ type kubeGenericRuntimeManager struct {
 
 	// Manage RuntimeClass resources.
 	runtimeClassManager *runtimeclass.Manager
+	
+	// Multiply physical CPU count by this factor to calculate effective number of CPU
+	cpuConversionFactor float32
 }
 
 type KubeGenericRuntime interface {
@@ -159,6 +162,7 @@ func NewKubeGenericRuntimeManager(
 	internalLifecycle cm.InternalContainerLifecycle,
 	legacyLogProvider LegacyLogProvider,
 	runtimeClassManager *runtimeclass.Manager,
+	cpuConversionFactor float32,
 ) (KubeGenericRuntime, error) {
 	kubeRuntimeManager := &kubeGenericRuntimeManager{
 		recorder:            recorder,
@@ -176,6 +180,7 @@ func NewKubeGenericRuntimeManager(
 		internalLifecycle:   internalLifecycle,
 		legacyLogProvider:   legacyLogProvider,
 		runtimeClassManager: runtimeClassManager,
+		cpuConversionFactor: cpuConversionFactor,
 	}
 
 	typedVersion, err := kubeRuntimeManager.runtimeService.Version(kubeRuntimeAPIVersion)

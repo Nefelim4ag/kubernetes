@@ -209,6 +209,18 @@ func hasAddressValue(addresses []v1.NodeAddress, addressValue string) bool {
 	return false
 }
 
+func actualizeCpuCount(node *v1.Node, experimentalCpuConversionFactor float32) {
+	factorValue := experimentalCpuConversionFactor
+
+	cpuCount := node.Status.Capacity[v1.ResourceCPU]
+	milliCpuCount := (&cpuCount).MilliValue()
+
+	effectiveMilliCpuCount := resource.NewMilliQuantity(int64(float32(milliCpuCount) * factorValue),
+		resource.DecimalSI)
+
+	node.Status.Capacity[v1.ResourceCPU] = *effectiveMilliCpuCount
+}
+
 // MachineInfo returns a Setter that updates machine-related information on the node.
 func MachineInfo(nodeName string,
 	maxPods int,
@@ -218,6 +230,7 @@ func MachineInfo(nodeName string,
 	devicePluginResourceCapacityFunc func() (v1.ResourceList, v1.ResourceList, []string), // typically Kubelet.containerManager.GetDevicePluginResourceCapacity
 	nodeAllocatableReservationFunc func() v1.ResourceList, // typically Kubelet.containerManager.GetNodeAllocatableReservation
 	recordEventFunc func(eventType, event, message string), // typically Kubelet.recordEvent
+	experimentalCpuConversionFactor float32,
 ) Setter {
 	return func(node *v1.Node) error {
 		// Note: avoid blindly overwriting the capacity in case opaque
@@ -297,6 +310,8 @@ func MachineInfo(nodeName string,
 				node.Status.Capacity[v1.ResourceName(removedResource)] = *resource.NewQuantity(int64(0), resource.DecimalSI)
 			}
 		}
+
+		actualizeCpuCount(node, experimentalCpuConversionFactor)
 
 		// Set Allocatable.
 		if node.Status.Allocatable == nil {
