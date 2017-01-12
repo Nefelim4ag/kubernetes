@@ -432,6 +432,8 @@ type KubeletConfiguration struct {
 	// Default: ["pods"]
 	// +optional
 	EnforceNodeAllocatable []string `json:"enforceNodeAllocatable,omitempty"`
+	// Multiply physical CPU count by this factor to calculate effective number of CPU
+	ExperimentalCpuConversionFactor float32 `json:"ExperimentalCpuConversionFactor,omitempty"`
 }
 
 type KubeletAuthorizationMode string

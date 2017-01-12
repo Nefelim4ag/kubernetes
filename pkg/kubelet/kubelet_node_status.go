@@ -573,6 +573,18 @@ func (kl *Kubelet) setNodeAddress(node *v1.Node) error {
 	return nil
 }
 
+func (kl *Kubelet) actualizeCpuCount(node *v1.Node) {
+	factorValue := kl.kubeletConfiguration.ExperimentalCpuConversionFactor
+
+	cpuCount := node.Status.Capacity[v1.ResourceCPU]
+	milliCpuCount := (&cpuCount).MilliValue()
+
+	effectiveMilliCpuCount := resource.NewMilliQuantity(int64(float32(milliCpuCount) * factorValue),
+		resource.DecimalSI)
+
+	node.Status.Capacity[v1.ResourceCPU] = *effectiveMilliCpuCount
+}
+
 func (kl *Kubelet) setNodeStatusMachineInfo(node *v1.Node) {
 	// Note: avoid blindly overwriting the capacity in case opaque
 	//       resources are being advertised.
@@ -657,6 +669,8 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *v1.Node) {
 			node.Status.Capacity[v1.ResourceName(removedResource)] = *resource.NewQuantity(int64(0), resource.DecimalSI)
 		}
 	}
+
+	kl.actualizeCpuCount(node)
 
 	// Set Allocatable.
 	if node.Status.Allocatable == nil {
