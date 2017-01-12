@@ -170,6 +170,7 @@ func newTestKubeletWithImageList(
 	fakeRecorder := &record.FakeRecorder{}
 	fakeKubeClient := &fake.Clientset{}
 	kubelet := &Kubelet{}
+	kubelet.kubeletConfiguration.ExperimentalCpuConversionFactor = 1.0
 	kubelet.recorder = fakeRecorder
 	kubelet.kubeClient = fakeKubeClient
 	kubelet.heartbeatClient = fakeKubeClient

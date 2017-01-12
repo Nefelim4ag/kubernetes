@@ -301,6 +301,7 @@ func TestMachineInfo(t *testing.T) {
 		capacity                     v1.ResourceList
 		devicePluginResourceCapacity dprc
 		nodeAllocatableReservation   v1.ResourceList
+		cpuConversionFactor          float32
 		expectNode                   *v1.Node
 		expectEvents                 []testEvent
 	}{
@@ -314,6 +315,7 @@ func TestMachineInfo(t *testing.T) {
 				NumCores:       2,
 				MemoryCapacity: 1024,
 			},
+			cpuConversionFactor: 1.0,
 			expectNode: &v1.Node{
 				Status: v1.NodeStatus{
 					NodeInfo: v1.NodeSystemInfo{
@@ -342,6 +344,7 @@ func TestMachineInfo(t *testing.T) {
 				NumCores:       2,
 				MemoryCapacity: 1024,
 			},
+			cpuConversionFactor: 1.0,
 			expectNode: &v1.Node{
 				Status: v1.NodeStatus{
 					Capacity: v1.ResourceList{
@@ -366,6 +369,7 @@ func TestMachineInfo(t *testing.T) {
 				NumCores:       2,
 				MemoryCapacity: 1024,
 			},
+			cpuConversionFactor: 1.0,
 			expectNode: &v1.Node{
 				Status: v1.NodeStatus{
 					Capacity: v1.ResourceList{
@@ -396,6 +400,7 @@ func TestMachineInfo(t *testing.T) {
 				v1.ResourcePods:             *resource.NewQuantity(1, resource.DecimalSI),
 				v1.ResourceEphemeralStorage: *resource.NewQuantity(1, resource.BinarySI),
 			},
+			cpuConversionFactor: 1.0,
 			expectNode: &v1.Node{
 				Status: v1.NodeStatus{
 					Capacity: v1.ResourceList{
@@ -407,6 +412,30 @@ func TestMachineInfo(t *testing.T) {
 						v1.ResourceCPU:    *resource.NewMilliQuantity(1999, resource.DecimalSI),
 						v1.ResourceMemory: *resource.NewQuantity(1023, resource.BinarySI),
 						v1.ResourcePods:   *resource.NewQuantity(109, resource.DecimalSI),
+					},
+				},
+			},
+		},
+		{
+			desc:    "CPU should adjust according to the CPU conversion factor",
+			node:    &v1.Node{},
+			maxPods: 110,
+			machineInfo: &cadvisorapiv1.MachineInfo{
+				NumCores:       2,
+				MemoryCapacity: 1024,
+			},
+			cpuConversionFactor: 1.5,
+			expectNode: &v1.Node{
+				Status: v1.NodeStatus{
+					Capacity: v1.ResourceList{
+						v1.ResourceCPU:    *resource.NewMilliQuantity(3000, resource.DecimalSI),
+						v1.ResourceMemory: *resource.NewQuantity(1024, resource.BinarySI),
+						v1.ResourcePods:   *resource.NewQuantity(110, resource.DecimalSI),
+					},
+					Allocatable: v1.ResourceList{
+						v1.ResourceCPU:    *resource.NewMilliQuantity(3000, resource.DecimalSI),
+						v1.ResourceMemory: *resource.NewQuantity(1024, resource.BinarySI),
+						v1.ResourcePods:   *resource.NewQuantity(110, resource.DecimalSI),
 					},
 				},
 			},
@@ -427,6 +456,7 @@ func TestMachineInfo(t *testing.T) {
 				NumCores:       2,
 				MemoryCapacity: 1024,
 			},
+			cpuConversionFactor: 1.0,
 			expectNode: &v1.Node{
 				Status: v1.NodeStatus{
 					Capacity: v1.ResourceList{
@@ -459,6 +489,7 @@ func TestMachineInfo(t *testing.T) {
 				NumCores:       2,
 				MemoryCapacity: 1024,
 			},
+			cpuConversionFactor: 1.0,
 			expectNode: &v1.Node{
 				Status: v1.NodeStatus{
 					Capacity: v1.ResourceList{
@@ -487,6 +518,7 @@ func TestMachineInfo(t *testing.T) {
 			capacity: v1.ResourceList{
 				v1.ResourceEphemeralStorage: *resource.NewQuantity(5000, resource.BinarySI),
 			},
+			cpuConversionFactor: 1.0,
 			expectNode: &v1.Node{
 				Status: v1.NodeStatus{
 					Capacity: v1.ResourceList{
@@ -520,6 +552,7 @@ func TestMachineInfo(t *testing.T) {
 					"device-plugin": *resource.NewQuantity(1, resource.BinarySI),
 				},
 			},
+			cpuConversionFactor: 1.0,
 			expectNode: &v1.Node{
 				Status: v1.NodeStatus{
 					Capacity: v1.ResourceList{
@@ -554,6 +587,7 @@ func TestMachineInfo(t *testing.T) {
 			devicePluginResourceCapacity: dprc{
 				inactive: []string{"inactive"},
 			},
+			cpuConversionFactor: 1.0,
 			expectNode: &v1.Node{
 				Status: v1.NodeStatus{
 					Capacity: v1.ResourceList{
@@ -585,6 +619,7 @@ func TestMachineInfo(t *testing.T) {
 				NumCores:       2,
 				MemoryCapacity: 1024,
 			},
+			cpuConversionFactor: 1.0,
 			expectNode: &v1.Node{
 				Status: v1.NodeStatus{
 					Capacity: v1.ResourceList{
@@ -607,6 +642,7 @@ func TestMachineInfo(t *testing.T) {
 			// podsPerCore is not accounted for when getting machine info fails
 			podsPerCore:      1,
 			machineInfoError: fmt.Errorf("foo"),
+			cpuConversionFactor: 1.0,
 			expectNode: &v1.Node{
 				Status: v1.NodeStatus{
 					Capacity: v1.ResourceList{
@@ -637,6 +673,7 @@ func TestMachineInfo(t *testing.T) {
 				NumCores:       2,
 				MemoryCapacity: 1024,
 			},
+			cpuConversionFactor: 1.0,
 			expectNode: &v1.Node{
 				Status: v1.NodeStatus{
 					NodeInfo: v1.NodeSystemInfo{
@@ -690,7 +727,7 @@ func TestMachineInfo(t *testing.T) {
 			}
 			// construct setter
 			setter := MachineInfo(nodeName, tc.maxPods, tc.podsPerCore, machineInfoFunc, capacityFunc,
-				devicePluginResourceCapacityFunc, nodeAllocatableReservationFunc, recordEventFunc)
+				devicePluginResourceCapacityFunc, nodeAllocatableReservationFunc, recordEventFunc, tc.cpuConversionFactor)
 			// call setter on node
 			if err := setter(tc.node); err != nil {
 				t.Fatalf("unexpected error: %v", err)

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 	"k8s.io/kubernetes/pkg/kubelet/qos"
 )
@@ -43,6 +44,13 @@ func (m *kubeGenericRuntimeManager) generateLinuxContainerConfig(container *v1.C
 	var cpuShares int64
 	cpuRequest := container.Resources.Requests.Cpu()
 	cpuLimit := container.Resources.Limits.Cpu()
+
+	cpuRequest = resource.NewMilliQuantity(int64(float32(cpuRequest.MilliValue())/m.cpuConversionFactor),
+		resource.DecimalSI)
+
+	cpuLimit = resource.NewMilliQuantity(int64(float32(cpuLimit.MilliValue())/m.cpuConversionFactor),
+		resource.DecimalSI)
+
 	memoryLimit := container.Resources.Limits.Memory().Value()
 	oomScoreAdj := int64(qos.GetContainerOOMScoreAdjust(pod, container,
 		int64(m.machineInfo.MemoryCapacity)))
