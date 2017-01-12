@@ -29,9 +29,6 @@ import (
 func ValidateKubeletConfiguration(kc *kubeletconfig.KubeletConfiguration) error {
 	allErrors := []error{}
 
-	if !kc.CgroupsPerQOS && len(kc.EnforceNodeAllocatable) > 0 {
-		allErrors = append(allErrors, fmt.Errorf("EnforceNodeAllocatable (--enforce-node-allocatable) is not supported unless CgroupsPerQOS (--cgroups-per-qos) feature is turned on"))
-	}
 	if kc.SystemCgroups != "" && kc.CgroupRoot == "" {
 		allErrors = append(allErrors, fmt.Errorf("Invalid configuration: SystemCgroups (--system-cgroups) was specified and CgroupRoot (--cgroup-root) was not specified"))
 	}

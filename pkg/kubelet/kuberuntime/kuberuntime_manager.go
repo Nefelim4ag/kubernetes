@@ -113,6 +113,9 @@ type kubeGenericRuntimeManager struct {
 
 	// Internal lifecycle event handlers for container resource management.
 	internalLifecycle cm.InternalContainerLifecycle
+
+	// Multiply physical CPU count by this factor to calculate effective number of CPU
+	cpuConversionFactor float32;
 }
 
 type KubeGenericRuntime interface {
@@ -140,6 +143,7 @@ func NewKubeGenericRuntimeManager(
 	runtimeService internalapi.RuntimeService,
 	imageService internalapi.ImageManagerService,
 	internalLifecycle cm.InternalContainerLifecycle,
+	cpuConversionFactor float32,
 ) (KubeGenericRuntime, error) {
 	kubeRuntimeManager := &kubeGenericRuntimeManager{
 		recorder:            recorder,
@@ -154,6 +158,7 @@ func NewKubeGenericRuntimeManager(
 		imageService:        newInstrumentedImageManagerService(imageService),
 		keyring:             credentialprovider.NewDockerKeyring(),
 		internalLifecycle:   internalLifecycle,
+		cpuConversionFactor: cpuConversionFactor,
 	}
 
 	typedVersion, err := kubeRuntimeManager.runtimeService.Version(kubeRuntimeAPIVersion)
