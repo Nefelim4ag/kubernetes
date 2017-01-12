@@ -38,6 +38,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubetypes "k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
 	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
@@ -240,6 +241,13 @@ func (m *kubeGenericRuntimeManager) generateLinuxContainerConfig(container *v1.C
 	var cpuShares int64
 	cpuRequest := container.Resources.Requests.Cpu()
 	cpuLimit := container.Resources.Limits.Cpu()
+
+	cpuRequest = resource.NewMilliQuantity(int64(float32(cpuRequest.MilliValue())/m.cpuConversionFactor),
+	resource.DecimalSI)
+
+	cpuLimit = resource.NewMilliQuantity(int64(float32(cpuLimit.MilliValue())/m.cpuConversionFactor),
+	resource.DecimalSI)
+
 	memoryLimit := container.Resources.Limits.Memory().Value()
 	oomScoreAdj := int64(qos.GetContainerOOMScoreAdjust(pod, container,
 		int64(m.machineInfo.MemoryCapacity)))
