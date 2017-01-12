@@ -209,4 +209,7 @@ func SetDefaults_KubeletConfiguration(obj *kubeletconfigv1beta1.KubeletConfigura
 	if obj.EnforceNodeAllocatable == nil {
 		obj.EnforceNodeAllocatable = DefaultNodeAllocatableEnforcement
 	}
+	if obj.ExperimentalCpuConversionFactor <= 0 {
+		obj.ExperimentalCpuConversionFactor = 1.0
+	}
 }
