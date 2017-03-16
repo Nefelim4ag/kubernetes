@@ -456,44 +456,7 @@ func (mounter *SafeFormatAndMount) formatAndMount(source string, target string, 
 	// Try to mount the disk
 	glog.V(4).Infof("Attempting to mount disk: %s %s %s", fstype, source, target)
 	mountErr := mounter.Interface.Mount(source, target, fstype, options)
-	if mountErr != nil {
-		// Mount failed. This indicates either that the disk is unformatted or
-		// it contains an unexpected filesystem.
-		existingFormat, err := mounter.getDiskFormat(source)
-		if err != nil {
-			return err
-		}
-		if existingFormat == "" {
-			// Disk is unformatted so format it.
-			args = []string{source}
-			// Use 'ext4' as the default
-			if len(fstype) == 0 {
-				fstype = "ext4"
-			}
 
-			if fstype == "ext4" || fstype == "ext3" {
-				args = []string{"-F", source}
-			}
-			glog.Infof("Disk %q appears to be unformatted, attempting to format as type: %q with options: %v", source, fstype, args)
-			_, err := mounter.Exec.Run("mkfs."+fstype, args...)
-			if err == nil {
-				// the disk has been formatted successfully try to mount it again.
-				glog.Infof("Disk successfully formatted (mkfs): %s - %s %s", fstype, source, target)
-				return mounter.Interface.Mount(source, target, fstype, options)
-			}
-			glog.Errorf("format of disk %q failed: type:(%q) target:(%q) options:(%q)error:(%v)", source, fstype, target, options, err)
-			return err
-		} else {
-			// Disk is already formatted and failed to mount
-			if len(fstype) == 0 || fstype == existingFormat {
-				// This is mount error
-				return mountErr
-			} else {
-				// Block device is formatted with unexpected filesystem, let the user know
-				return fmt.Errorf("failed to mount the volume as %q, it already contains %s. Mount error: %v", fstype, existingFormat, mountErr)
-			}
-		}
-	}
 	return mountErr
 }
 
