@@ -105,14 +105,14 @@ func NewManager(
 	clock clock.Clock,
 ) (Manager, lifecycle.PodAdmitHandler) {
 	manager := &managerImpl{
-		clock:           clock,
-		killPodFunc:     killPodFunc,
-		imageGC:         imageGC,
-		containerGC:     containerGC,
-		config:          config,
-		recorder:        recorder,
-		summaryProvider: summaryProvider,
-		nodeRef:         nodeRef,
+		clock:                        clock,
+		killPodFunc:                  killPodFunc,
+		imageGC:                      imageGC,
+		containerGC:                  containerGC,
+		config:                       config,
+		recorder:                     recorder,
+		summaryProvider:              summaryProvider,
+		nodeRef:                      nodeRef,
 		nodeConditionsLastObservedAt: nodeConditionsObservedAt{},
 		thresholdsFirstObservedAt:    thresholdsObservedAt{},
 		dedicatedImageFs:             nil,
@@ -389,9 +389,14 @@ func (m *managerImpl) synchronize(diskInfoProvider DiskInfoProvider, podFunc Act
 		// If the pod is marked as critical and static, and support for critical pod annotations is enabled,
 		// do not evict such pods. Static pods are not re-admitted after evictions.
 		// https://github.com/kubernetes/kubernetes/issues/40573 has more details.
-		if utilfeature.DefaultFeatureGate.Enabled(features.ExperimentalCriticalPodAnnotation) &&
-			kubelettypes.IsCriticalPod(pod) && kubepod.IsStaticPod(pod) {
-			continue
+		if utilfeature.DefaultFeatureGate.Enabled(features.ExperimentalCriticalPodAnnotation) {
+			if kubelettypes.IsCriticalPod(pod) {
+				glog.Infof("eviction manager: NOT evicting critical pod %v", pod.Name)
+				continue
+			}
+			if kubepod.IsStaticPod(pod) {
+				continue
+			}
 		}
 		status := v1.PodStatus{
 			Phase:   v1.PodFailed,
