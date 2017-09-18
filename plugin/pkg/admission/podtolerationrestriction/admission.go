@@ -105,6 +105,9 @@ func (p *podTolerationsPlugin) Admit(a admission.Attributes) error {
 			ts = p.pluginConfig.Default
 		}
 
+		glog.V(3).Infof("Namespace tolerations: %+v", ts)
+		glog.V(3).Infof("POD tolerations: %+v", pod.Spec.Tolerations)
+
 		if len(ts) > 0 {
 			if len(pod.Spec.Tolerations) > 0 {
 				if tolerations.IsConflict(ts, pod.Spec.Tolerations) {
@@ -135,6 +138,8 @@ func (p *podTolerationsPlugin) Admit(a admission.Attributes) error {
 	}
 	pod.Spec.Tolerations = finalTolerations
 
+	glog.V(3).Infof("Final tolerations: %+v", finalTolerations)
+
 	return p.Validate(a)
 }
 func (p *podTolerationsPlugin) Validate(a admission.Attributes) error {
@@ -154,6 +159,8 @@ func (p *podTolerationsPlugin) Validate(a admission.Attributes) error {
 			return err
 		}
 
+		glog.V(3).Infof("Namespace whitelist tolerations: %+v", whitelist)
+
 		// If the namespace has not specified its tolerations whitelist,
 		// fall back to cluster's whitelist of tolerations.
 		if whitelist == nil {
@@ -163,7 +170,7 @@ func (p *podTolerationsPlugin) Validate(a admission.Attributes) error {
 		if len(whitelist) > 0 {
 			// check if the merged pod tolerations satisfy its namespace whitelist
 			if !tolerations.VerifyAgainstWhitelist(pod.Spec.Tolerations, whitelist) {
-				return fmt.Errorf("pod tolerations (possibly merged with namespace default tolerations) conflict with its namespace whitelist")
+				return fmt.Errorf("pod tolerations (%+v) (possibly merged with namespace default tolerations) conflict with its namespace whitelist (%+v)", pod.Spec.Tolerations, whitelist)
 			}
 		}
 	}
