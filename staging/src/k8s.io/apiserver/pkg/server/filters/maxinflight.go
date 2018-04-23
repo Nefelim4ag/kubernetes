@@ -27,6 +27,7 @@ import (
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/endpoints/metrics"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 
 	"github.com/golang/glog"
 )
@@ -161,6 +162,93 @@ func WithMaxInFlightLimit(
 						watermark.recordReadOnly(readOnlyLen)
 					}
 
+				}()
+				handler.ServeHTTP(w, r)
+
+			default:
+				// We need to split this data between buckets used for throttling.
+				if isMutatingRequest {
+					metrics.DroppedRequests.WithLabelValues(metrics.MutatingKind).Inc()
+				} else {
+					metrics.DroppedRequests.WithLabelValues(metrics.ReadOnlyKind).Inc()
+				}
+				// at this point we're about to return a 429, BUT not all actors should be rate limited.  A system:master is so powerful
+				// that he should always get an answer.  It's a super-admin or a loopback connection.
+				if currUser, ok := apirequest.UserFrom(ctx); ok {
+					for _, group := range currUser.GetGroups() {
+						if group == user.SystemPrivilegedGroup {
+							handler.ServeHTTP(w, r)
+							return
+						}
+					}
+				}
+				metrics.Record(r, requestInfo, "", http.StatusTooManyRequests, 0, 0)
+				tooManyRequests(r, w)
+			}
+		}
+	})
+}
+
+// WithMaxInFlightPerUserLimit limits the number of in-flight requests to buffer size of the passed in channel.
+func WithMaxInFlightPerUserLimit(
+	handler http.Handler,
+	limit int,
+	requestContextMapper genericapirequest.RequestContextMapper,
+	longRunningRequestCheck apirequest.LongRunningRequestCheck,
+) http.Handler {
+	if limit == 0 {
+		return handler
+	}
+
+	userLimits := struct {
+		sync.Mutex
+		chans map[string]chan bool
+	}{
+		chans: make(map[string]chan bool),
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, ok := requestContextMapper.Get(r)
+		if !ok {
+			handleError(w, r, fmt.Errorf("no context found for request, handler chain must be wrong"))
+			return
+		}
+		requestInfo, ok := apirequest.RequestInfoFrom(ctx)
+		if !ok {
+			handleError(w, r, fmt.Errorf("no RequestInfo found in context, handler chain must be wrong"))
+			return
+		}
+
+		// Skip tracking long running events.
+		if longRunningRequestCheck != nil && longRunningRequestCheck(r, requestInfo) {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
+		var username string
+		if currUser, ok := apirequest.UserFrom(ctx); ok {
+			username = currUser.GetName()
+		}
+
+		var c chan bool
+		if limit != 0 {
+			userLimits.Lock()
+			if c, ok = userLimits.chans[username]; !ok {
+				c = make(chan bool, limit)
+				userLimits.chans[username] = c
+			}
+			userLimits.Unlock()
+		}
+		isMutatingRequest := !nonMutatingRequestVerbs.Has(requestInfo.Verb)
+
+		if c == nil {
+			handler.ServeHTTP(w, r)
+		} else {
+
+			select {
+			case c <- true:
+				defer func() {
+					<-c
 				}()
 				handler.ServeHTTP(w, r)
 
