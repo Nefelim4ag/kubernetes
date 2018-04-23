@@ -159,6 +159,9 @@ type Config struct {
 	// If specified, long running requests such as watch will be allocated a random timeout between this value, and
 	// twice this value.  Note that it is up to the request handlers to ignore or honor this timeout. In seconds.
 	MinRequestTimeout int
+	// MaxRequestsPerUserInFlight is the maximum number of parallel non-long-running requests per one user. Every further
+	// request has to wait.
+	MaxRequestsPerUserInFlight int
 	// MaxRequestsInFlight is the maximum number of parallel non-long-running requests. Every further
 	// request has to wait. Applies only to non-mutating requests.
 	MaxRequestsInFlight int
@@ -515,6 +518,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 
 func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	handler := genericapifilters.WithAuthorization(apiHandler, c.RequestContextMapper, c.Authorizer, c.Serializer)
+	handler = genericfilters.WithMaxInFlightPerUserLimit(handler, c.MaxRequestsPerUserInFlight, c.RequestContextMapper, c.LongRunningFunc)
 	handler = genericfilters.WithMaxInFlightLimit(handler, c.MaxRequestsInFlight, c.MaxMutatingRequestsInFlight, c.RequestContextMapper, c.LongRunningFunc)
 	handler = genericapifilters.WithImpersonation(handler, c.RequestContextMapper, c.Authorizer, c.Serializer)
 	if utilfeature.DefaultFeatureGate.Enabled(features.AdvancedAuditing) {

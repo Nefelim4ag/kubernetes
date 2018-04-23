@@ -84,6 +84,7 @@ func TestAddFlags(t *testing.T) {
 		"--proxy-client-key-file=/var/run/kubernetes/proxy.key",
 		"--request-timeout=2m",
 		"--storage-backend=etcd2",
+		"--max-requests-per-user-inflight=100",
 	}
 	f.Parse(args)
 
@@ -95,6 +96,7 @@ func TestAddFlags(t *testing.T) {
 		GenericServerRunOptions: &apiserveroptions.ServerRunOptions{
 			AdvertiseAddress:            net.ParseIP("192.168.10.10"),
 			CorsAllowedOriginList:       []string{"10.10.10.100", "10.10.10.200"},
+			MaxRequestsPerUserInFlight:  100,
 			MaxRequestsInFlight:         400,
 			MaxMutatingRequestsInFlight: 200,
 			RequestTimeout:              time.Duration(2) * time.Minute,
