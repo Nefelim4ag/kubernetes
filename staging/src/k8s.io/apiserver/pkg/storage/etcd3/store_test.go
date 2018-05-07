@@ -801,11 +801,23 @@ func TestList(t *testing.T) {
 		pred           storage.SelectionPredicate
 		expectedOut    []*example.Pod
 		expectContinue bool
+		listAll        bool
 	}{
 		{ // test List on existing key
 			prefix:      "/one-level/",
 			pred:        storage.Everything,
 			expectedOut: []*example.Pod{preset[0].storedObj},
+		},
+		{ // test List on non-complete key
+			prefix:      "/one-",
+			pred:        storage.Everything,
+			expectedOut: nil,
+		},
+		{ // test ListAll on existing key
+			prefix:      "/one-",
+			pred:        storage.Everything,
+			expectedOut: []*example.Pod{preset[0].storedObj},
+			listAll:     true,
 		},
 		{ // test List on non-existing key
 			prefix:      "/non-existing/",
@@ -877,7 +889,9 @@ func TestList(t *testing.T) {
 	for i, tt := range tests {
 		out := &example.PodList{}
 		var err error
-		if tt.disablePaging {
+		if tt.listAll {
+			err = store.ListAll(ctx, tt.prefix, "0", tt.pred, out)
+		} else if tt.disablePaging {
 			err = disablePagingStore.List(ctx, tt.prefix, "0", tt.pred, out)
 		} else {
 			err = store.List(ctx, tt.prefix, "0", tt.pred, out)
@@ -983,7 +997,7 @@ func testPropogateStore(ctx context.Context, t *testing.T, store *store, obj *ex
 	key := "/testkey"
 	err := store.unconditionalDelete(ctx, key, &example.Pod{})
 	if err != nil && !storage.IsNotFound(err) {
-		t.Fatal("Cleanup failed: %v", err)
+		t.Fatalf("Cleanup failed: %v", err)
 	}
 	setOutput := &example.Pod{}
 	if err := store.Create(ctx, key, obj, setOutput, 0); err != nil {
