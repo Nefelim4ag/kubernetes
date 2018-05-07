@@ -26,6 +26,10 @@ import (
 	printersinternal "k8s.io/kubernetes/pkg/printers/internalversion"
 	printerstorage "k8s.io/kubernetes/pkg/printers/storage"
 	"k8s.io/kubernetes/pkg/registry/core/event"
+	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
+	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 type REST struct {
@@ -72,4 +76,25 @@ var _ rest.ShortNamesProvider = &REST{}
 // ShortNames implements the ShortNamesProvider interface. Returns a list of short names for a resource.
 func (r *REST) ShortNames() []string {
 	return []string{"ev"}
+}
+
+// List returns a list of events matching labels and field according to the store's PredicateFunc.
+//
+// It adds involved object name to context to optimize events retrieving from etcd,
+// see registry.Store.ListPredicate(), etcd3.store.ListAll()
+func (r *REST) List(ctx genericapirequest.Context, options *metainternalversion.ListOptions) (runtime.Object, error) {
+	label := labels.Everything()
+	if options != nil && options.LabelSelector != nil {
+		label = options.LabelSelector
+	}
+	field := fields.Everything()
+	if options != nil && options.FieldSelector != nil {
+		field = options.FieldSelector
+	}
+	objectName, ok := r.Store.PredicateFunc(label, field).Field.RequiresExactMatch("involvedObject.name")
+	if ok {
+		ctx = genericapirequest.WithInvolvedObjectName(ctx, objectName)
+	}
+
+	return r.Store.List(ctx, options)
 }
