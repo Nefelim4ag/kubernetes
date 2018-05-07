@@ -471,13 +471,27 @@ func (c *Cacher) GetToList(ctx context.Context, key string, resourceVersion stri
 }
 
 // Implements storage.Interface.
+func (c *Cacher) ListAll(ctx context.Context, key string, resourceVersion string, pred SelectionPredicate, listObj runtime.Object) error {
+	return c.doList(ctx, key, resourceVersion, pred, listObj, true)
+}
+
+// Implements storage.Interface.
 func (c *Cacher) List(ctx context.Context, key string, resourceVersion string, pred SelectionPredicate, listObj runtime.Object) error {
+	return c.doList(ctx, key, resourceVersion, pred, listObj, false)
+}
+
+// Back-end for Cacher.List() & Cacher.ListAll()
+func (c *Cacher) doList(ctx context.Context, key string, resourceVersion string, pred SelectionPredicate, listObj runtime.Object, all bool) error {
 	pagingEnabled := utilfeature.DefaultFeatureGate.Enabled(features.APIListChunking)
 	if resourceVersion == "" || (pagingEnabled && (len(pred.Continue) > 0 || pred.Limit > 0)) {
 		// If resourceVersion is not specified, serve it from underlying
 		// storage (for backward compatibility). If a continuation or limit is
 		// requested, serve it from the underlying storage as well.
-		return c.storage.List(ctx, key, resourceVersion, pred, listObj)
+		if all {
+			return c.storage.ListAll(ctx, key, resourceVersion, pred, listObj)
+		} else {
+			return c.storage.List(ctx, key, resourceVersion, pred, listObj)
+		}
 	}
 
 	// If resourceVersion is specified, serve it from cache.
@@ -491,7 +505,11 @@ func (c *Cacher) List(ctx context.Context, key string, resourceVersion string, p
 	if listRV == 0 && !c.ready.check() {
 		// If Cacher is not yet initialized and we don't require any specific
 		// minimal resource version, simply forward the request to storage.
-		return c.storage.List(ctx, key, resourceVersion, pred, listObj)
+		if all {
+			return c.storage.ListAll(ctx, key, resourceVersion, pred, listObj)
+		} else {
+			return c.storage.List(ctx, key, resourceVersion, pred, listObj)
+		}
 	}
 
 	trace := utiltrace.New(fmt.Sprintf("cacher %v: List", c.objectType.String()))

@@ -67,6 +67,9 @@ const (
 	// auditKey is the context key for the audit event.
 	auditKey
 
+	// objectNameKey is the context key for the involved object name.
+	objectNameKey
+
 	namespaceDefault = "default" // TODO(sttts): solve import cycle when using metav1.NamespaceDefault
 )
 
@@ -157,4 +160,22 @@ func WithAuditEvent(parent Context, ev *audit.Event) Context {
 func AuditEventFrom(ctx Context) *audit.Event {
 	ev, _ := ctx.Value(auditKey).(*audit.Event)
 	return ev
+}
+
+
+// WithInvolvedObjectName returns a copy of parent in which the involved object name value is set
+func WithInvolvedObjectName(parent Context, involvedObjectName string) Context {
+	return WithValue(parent, objectNameKey, involvedObjectName)
+}
+
+// InvolvedObjectNameFrom returns the value of the involved object name key on the ctx
+func InvolvedObjectNameFrom(ctx Context) (string, bool) {
+	involvedObjectName, ok := ctx.Value(objectNameKey).(string)
+	return involvedObjectName, ok
+}
+
+// InvolvedObjectNameValue returns the value of the involved object name key on the ctx, or the empty string if none
+func InvolvedObjectNameValue(ctx Context) string {
+	involvedObjectName, _ := InvolvedObjectNameFrom(ctx)
+	return involvedObjectName
 }
