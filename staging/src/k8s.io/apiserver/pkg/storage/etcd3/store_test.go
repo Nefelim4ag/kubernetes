@@ -837,6 +837,7 @@ func TestList(t *testing.T) {
 		expectedOut    []*example.Pod
 		expectContinue bool
 		expectError    bool
+		listAll        bool
 	}{
 		{
 			name:        "rejects invalid resource version",
@@ -862,6 +863,17 @@ func TestList(t *testing.T) {
 			prefix:      "/one-level/",
 			pred:        storage.Everything,
 			expectedOut: []*example.Pod{preset[0].storedObj},
+		},
+		{
+			prefix:      "/one-",
+			pred:        storage.Everything,
+			expectedOut: nil,
+		},
+		{
+			prefix:      "/one-",
+			pred:        storage.Everything,
+			expectedOut: []*example.Pod{preset[0].storedObj},
+			listAll:     true,
 		},
 		{
 			name:        "test List on non-existing key",
@@ -1047,7 +1059,9 @@ func TestList(t *testing.T) {
 
 		out := &example.PodList{}
 		var err error
-		if tt.disablePaging {
+		if tt.listAll {
+			err = store.ListAll(ctx, tt.prefix, tt.rv, tt.pred, out)
+		} else if tt.disablePaging {
 			err = disablePagingStore.List(ctx, tt.prefix, tt.rv, tt.pred, out)
 		} else {
 			err = store.List(ctx, tt.prefix, tt.rv, tt.pred, out)
