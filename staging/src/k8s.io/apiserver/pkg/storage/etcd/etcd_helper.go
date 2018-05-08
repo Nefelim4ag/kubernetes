@@ -422,6 +422,11 @@ func (h *etcdHelper) decodeNodeList(nodes []*etcd.Node, filter storage.FilterFun
 }
 
 // Implements storage.Interface.
+func (h *etcdHelper) ListAll(ctx context.Context, keyPrefix string, resourceVersion string, pred storage.SelectionPredicate, listObj runtime.Object) error {
+	return h.List(ctx, keyPrefix, resourceVersion, pred, listObj)
+}
+
+// Implements storage.Interface.
 func (h *etcdHelper) List(ctx context.Context, key string, resourceVersion string, pred storage.SelectionPredicate, listObj runtime.Object) error {
 	if ctx == nil {
 		glog.Errorf("Context is nil")
