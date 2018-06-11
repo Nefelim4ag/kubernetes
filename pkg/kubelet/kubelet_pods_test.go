@@ -37,6 +37,7 @@ import (
 	utilfeaturetesting "k8s.io/apiserver/pkg/util/feature/testing"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/kubernetes/pkg/kubelet/cm"
 
 	// TODO: remove this import if
 	// api.Registry.GroupOrDie(v1.GroupName).GroupVersions[0].String() is changed
@@ -2342,5 +2343,143 @@ func TestTruncatePodHostname(t *testing.T) {
 		output, err := truncatePodHostnameIfNeeded("test-pod", test.input)
 		assert.NoError(t, err)
 		assert.Equal(t, test.output, output)
+	}
+}
+
+func TestPodResourcesAreReclaimed(t *testing.T) {
+	const (
+		podUID  types.UID = "pod-uid"
+		podName string    = "fooBar"
+	)
+	desiredState := v1.PodSpec{
+		NodeName: "machine",
+		Containers: []v1.Container{
+			{Name: "containerA"},
+			{Name: "containerB"},
+		},
+	}
+	tests := []struct {
+		name string
+		init func(*TestKubelet, *v1.Pod) error
+		pod  *v1.Pod
+		want bool
+	}{
+		{
+			name: "skip pods that still have running containers",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:  podUID,
+					Name: podName,
+				},
+				Spec: desiredState,
+				Status: v1.PodStatus{
+					ContainerStatuses: []v1.ContainerStatus{
+						runningState("containerA"),
+						stoppedState("containerB"),
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "skip pods whose volumes have not been cleaned up",
+			init: func(testKubelet *TestKubelet, pod *v1.Pod) error {
+				podDir := testKubelet.kubelet.getPodDir(pod.UID)
+				path := filepath.Join(podDir, "volumes/plugin/name")
+				if err := os.MkdirAll(path, 0755); err != nil {
+					return err
+				}
+				testKubelet.kubelet.mounter = &mount.FakeMounter{
+					MountPoints: []mount.MountPoint{
+						{
+							Device: "/foo",
+							Path:   path,
+						},
+					},
+				}
+				return nil
+			},
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:  podUID,
+					Name: podName,
+				},
+				Spec: desiredState,
+				Status: v1.PodStatus{
+					ContainerStatuses: []v1.ContainerStatus{
+						stoppedState("containerA"),
+						stoppedState("containerB"),
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "skip pods whose cgroup sandbox has not been cleaned up",
+			init: func(testKubelet *TestKubelet, pod *v1.Pod) error {
+				testKubelet.kubelet.kubeletConfiguration.CgroupsPerQOS = true
+				testKubelet.kubelet.containerManager = cm.NewStubContainerManager()
+				return nil
+			},
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:  podUID,
+					Name: podName,
+				},
+				Spec: desiredState,
+				Status: v1.PodStatus{
+					ContainerStatuses: []v1.ContainerStatus{
+						stoppedState("containerA"),
+						stoppedState("containerB"),
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "does not skip pods whose containers have not been cleaned up yet",
+			init: func(testKubelet *TestKubelet, pod *v1.Pod) error {
+				containerID := kubecontainer.ContainerID{Type: "foo", ID: "container-123456"}
+				testKubelet.fakeRuntime.PodStatus = kubecontainer.PodStatus{
+					ContainerStatuses: []*kubecontainer.ContainerStatus{
+						{
+							ID:    containerID,
+							State: kubecontainer.ContainerStateExited,
+						},
+					},
+				}
+				testKubelet.kubelet.podCache = containertest.NewFakeCache(testKubelet.fakeRuntime)
+				return nil
+			},
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:  podUID,
+					Name: podName,
+				},
+				Spec: desiredState,
+				Status: v1.PodStatus{
+					ContainerStatuses: []v1.ContainerStatus{
+						stoppedState("containerA"),
+						stoppedState("containerB"),
+					},
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			testKubelet := newTestKubelet(t, false)
+			defer testKubelet.Cleanup()
+
+			kubelet := testKubelet.kubelet
+
+			if tc.init != nil {
+				assert.NoError(t, tc.init(testKubelet, tc.pod))
+			}
+
+			assert.Equal(t, tc.want, kubelet.PodResourcesAreReclaimed(tc.pod, tc.pod.Status))
+		})
 	}
 }
