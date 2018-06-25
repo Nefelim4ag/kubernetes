@@ -260,6 +260,10 @@ type KubeletConfiguration struct {
 	// Maximum number of container log files that can be present for a container.
 	ContainerLogMaxFiles int32
 
+	// List of namespaces where Critical pod annotation keys enabled
+	// +optional
+	CriticalNamespaces []string
+
 	/* the following fields are meant for Node Allocatable */
 
 	// A set of ResourceName=ResourceQuantity (e.g. cpu=200m,memory=150G) pairs

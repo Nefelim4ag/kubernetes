@@ -613,6 +613,10 @@ type KubeletConfiguration struct {
 	// +optional
 	ContainerLogMaxFiles *int32 `json:"containerLogMaxFiles,omitempty"`
 
+	// List of namespaces where Critical pod annotation keys enabled
+	// +optional
+	CriticalNamespaces []string `json:"criticalNamespaces,omitempty"`
+
 	/* the following fields are meant for Node Allocatable */
 
 	// systemReserved is a set of ResourceName=ResourceQuantity (e.g. cpu=200m,memory=150G)
