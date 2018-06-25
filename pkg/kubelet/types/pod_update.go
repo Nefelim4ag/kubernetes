@@ -68,6 +68,14 @@ const (
 	NamespaceDefault = metav1.NamespaceDefault
 )
 
+var criticalNamespaces = map[string]bool{kubeapi.NamespaceSystem: true}
+
+// Marks provided namespace as critical.
+// Critical pod annotation keys restricted to critical namespaces
+func AddCriticalNamespace(ns string) {
+	criticalNamespaces[ns] = true
+}
+
 // PodUpdate defines an operation sent on the channel. You can add or remove single services by
 // sending an array of size one and Op == ADD|REMOVE (with REMOVE, only the ID is required).
 // For setting the state of the system to a given state for this source configuration, set
@@ -180,7 +188,7 @@ func Preemptable(preemptor, preemptee *v1.Pod) bool {
 // TODO: @ravig - Deprecated. Remove this when we move to resolving critical pods based on priorityClassName.
 func IsCritical(ns string, annotations map[string]string) bool {
 	// Critical pods are restricted to "kube-system" namespace as of now.
-	if ns != kubeapi.NamespaceSystem {
+	if !criticalNamespaces[ns] {
 		return false
 	}
 	val, ok := annotations[CriticalPodAnnotationKey]
