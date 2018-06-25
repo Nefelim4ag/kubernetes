@@ -193,6 +193,11 @@ func (in *KubeletConfiguration) DeepCopyInto(out *KubeletConfiguration) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.CriticalNamespaces != nil {
+		in, out := &in.CriticalNamespaces, &out.CriticalNamespaces
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.SystemReserved != nil {
 		in, out := &in.SystemReserved, &out.SystemReserved
 		*out = make(ConfigurationMap, len(*in))

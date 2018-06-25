@@ -329,6 +329,9 @@ type KubeletConfiguration struct {
 	// This flag, if set, instructs the kubelet to keep volumes from terminated pods mounted to the node.
 	// This can be useful for debugging volume related issues.
 	KeepTerminatedPodVolumes bool `json:"keepTerminatedPodVolumes,omitempty"`
+	// List of namespaces where Critical pod annotation keys enabled
+	// +optional
+	CriticalNamespaces []string `json:"criticalNamespaces,omitempty"`
 
 	/* following flags are meant for Node Allocatable */
 

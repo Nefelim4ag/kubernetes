@@ -409,6 +409,10 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		KernelMemcgNotification:  kubeCfg.ExperimentalKernelMemcgNotification,
 	}
 
+	for _, ns := range kubeCfg.CriticalNamespaces {
+		kubetypes.AddCriticalNamespace(ns)
+	}
+
 	serviceIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	if kubeDeps.KubeClient != nil {
 		serviceLW := cache.NewListWatchFromClient(kubeDeps.KubeClient.Core().RESTClient(), "services", metav1.NamespaceAll, fields.Everything())
