@@ -292,6 +292,7 @@ func autoConvert_v1alpha1_KubeletConfiguration_To_kubeletconfig_KubeletConfigura
 	out.FailSwapOn = in.FailSwapOn
 	out.ExperimentalCheckNodeCapabilitiesBeforeMount = in.ExperimentalCheckNodeCapabilitiesBeforeMount
 	out.KeepTerminatedPodVolumes = in.KeepTerminatedPodVolumes
+	out.CriticalNamespaces = *(*[]string)(unsafe.Pointer(&in.CriticalNamespaces))
 	out.SystemReserved = *(*kubeletconfig.ConfigurationMap)(unsafe.Pointer(&in.SystemReserved))
 	out.KubeReserved = *(*kubeletconfig.ConfigurationMap)(unsafe.Pointer(&in.KubeReserved))
 	out.SystemReservedCgroup = in.SystemReservedCgroup
@@ -458,6 +459,7 @@ func autoConvert_kubeletconfig_KubeletConfiguration_To_v1alpha1_KubeletConfigura
 	out.FailSwapOn = in.FailSwapOn
 	out.ExperimentalCheckNodeCapabilitiesBeforeMount = in.ExperimentalCheckNodeCapabilitiesBeforeMount
 	out.KeepTerminatedPodVolumes = in.KeepTerminatedPodVolumes
+	out.CriticalNamespaces = *(*[]string)(unsafe.Pointer(&in.CriticalNamespaces))
 	out.SystemReserved = *(*map[string]string)(unsafe.Pointer(&in.SystemReserved))
 	out.KubeReserved = *(*map[string]string)(unsafe.Pointer(&in.KubeReserved))
 	out.SystemReservedCgroup = in.SystemReservedCgroup

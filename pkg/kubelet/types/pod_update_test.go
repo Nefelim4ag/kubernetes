@@ -167,7 +167,32 @@ func TestIsCriticalPod(t *testing.T) {
 			},
 			expected: true,
 		},
+		{
+			pod: v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "pod3",
+					Namespace: "test-system",
+					Annotations: map[string]string{
+						"scheduler.alpha.kubernetes.io/critical-pod": "abc",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			pod: v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "pod3",
+					Namespace: "test-system",
+					Annotations: map[string]string{
+						"scheduler.alpha.kubernetes.io/critical-pod": "",
+					},
+				},
+			},
+			expected: true,
+		},
 	}
+	AddCriticalNamespace("test-system")
 	for i, data := range cases {
 		actual := IsCriticalPod(&data.pod)
 		if actual != data.expected {
