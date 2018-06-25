@@ -259,6 +259,9 @@ type KubeletConfiguration struct {
 	FeatureGates map[string]bool `json:"featureGates,omitempty"`
 	// Tells the Kubelet to fail to start if swap is enabled on the node.
 	FailSwapOn bool `json:"failSwapOn,omitempty"`
+	// List of namespaces where Critical pod annotation keys enabled
+	// +optional
+	CriticalNamespaces []string `json:"criticalNamespaces,omitempty"`
 
 	/* following flags are meant for Node Allocatable */
 

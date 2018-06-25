@@ -264,6 +264,9 @@ type KubeletConfiguration struct {
 	FeatureGates map[string]bool
 	// Tells the Kubelet to fail to start if swap is enabled on the node.
 	FailSwapOn bool
+	// List of namespaces where Critical pod annotation keys enabled
+	// +optional
+	CriticalNamespaces []string
 
 	/* following flags are meant for Node Allocatable */
 
