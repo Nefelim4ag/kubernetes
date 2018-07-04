@@ -47,6 +47,11 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/controller"
+	"k8s.io/kubernetes/pkg/kubelet/container"
+	"k8s.io/kubernetes/pkg/kubelet/network"
+	"k8s.io/kubernetes/pkg/kubelet/network/cni"
+	"k8s.io/kubernetes/pkg/kubelet/network/hostport"
+	"k8s.io/kubernetes/pkg/kubelet/network/kubenet"
 	"k8s.io/kubernetes/pkg/util/metrics"
 )
 
@@ -377,6 +382,16 @@ func (rsc *ReplicaSetController) deletePod(obj interface{}) {
 		return
 	}
 	glog.V(4).Infof("Pod %s/%s deleted through %v, timestamp %+v: %#v.", pod.Namespace, pod.Name, utilruntime.GetCaller(), pod.DeletionTimestamp, pod)
+
+	pm, err := TeardownNetworkPluginManager()
+	if err == nil {
+		for _, cs := range pod.Status.ContainerStatuses {
+			pm.TearDownPod(pod.Namespace, pod.Name, container.BuildContainerID("docker", cs.ContainerID))
+		}
+	} else {
+		glog.Warningf("Error initializing TearDown network plugin: %s", err)
+	}
+
 	rsc.expectations.DeletionObserved(rsKey, controller.PodKey(pod))
 	rsc.enqueueReplicaSet(rs)
 }
@@ -649,4 +664,59 @@ func (rsc *ReplicaSetController) syncReplicaSet(key string) error {
 		rsc.enqueueReplicaSetAfter(updatedRS, time.Duration(updatedRS.Spec.MinReadySeconds)*time.Second)
 	}
 	return manageReplicasErr
+}
+
+var tdpm *network.PluginManager
+
+func TeardownNetworkPluginManager() (*network.PluginManager, error) {
+	if tdpm != nil {
+		return tdpm, nil
+	}
+	cniPlugins := cni.ProbeNetworkPlugins("", "")
+	cniPlugins = append(cniPlugins, kubenet.NewPlugin(""))
+	netHost := &mockNetworkHost{}
+
+	plug, err := network.InitNetworkPlugin(cniPlugins, "cni", netHost, "hairpin-veth", "0.0.0.0/0", 0)
+	if err != nil {
+		return nil, fmt.Errorf("didn't find compatible CNI plugin with given settings: %v", err)
+	}
+	tdpm = network.NewPluginManager(plug)
+	glog.Infof("Docker cri networking managed by %v", plug.Name())
+
+	return tdpm, nil
+}
+
+type mockNetworkHost struct{}
+
+func (h *mockNetworkHost) GetNetNS(containerID string) (string, error) {
+	return "", nil
+}
+
+func (h *mockNetworkHost) GetPodPortMappings(containerID string) ([]*hostport.PortMapping, error) {
+	return nil, nil
+}
+
+// Get the pod structure by its name, namespace
+// Only used for hostport management and bw shaping
+func (h *mockNetworkHost) GetPodByName(namespace, name string) (*v1.Pod, bool) {
+	return nil, false
+}
+
+// GetKubeClient returns a client interface
+// Only used in testing
+func (h *mockNetworkHost) GetKubeClient() clientset.Interface {
+	return nil
+}
+
+// GetContainerRuntime returns the container runtime that implements the containers (e.g. docker/rkt)
+// Only used for hostport management
+func (h *mockNetworkHost) GetRuntime() container.Runtime {
+	return nil
+}
+
+// SupportsLegacyFeatures returns true if the network host support GetPodByName, KubeClient interface and kubelet
+// runtime interface. These interfaces will no longer be implemented by CRI shims.
+// This function helps network plugins to choose their behavior based on runtime.
+func (h *mockNetworkHost) SupportsLegacyFeatures() bool {
+	return false
 }
