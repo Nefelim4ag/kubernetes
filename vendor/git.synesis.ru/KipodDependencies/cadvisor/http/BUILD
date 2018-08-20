@@ -31,7 +31,7 @@ filegroup(
     name = "all-srcs",
     srcs = [
         ":package-srcs",
-        "//vendor/github.com/google/cadvisor/http/mux:all-srcs",
+        "//vendor/git.synesis.ru/KipodDependencies/cadvisor/http/mux:all-srcs",
     ],
     tags = ["automanaged"],
     visibility = ["//visibility:public"],

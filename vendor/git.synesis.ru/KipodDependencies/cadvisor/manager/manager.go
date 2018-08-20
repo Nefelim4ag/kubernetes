@@ -369,7 +369,7 @@ func (self *manager) globalHousekeeping(quit chan error) {
 			// Log if housekeeping took too long.
 			duration := time.Since(start)
 			if duration >= longHousekeeping {
-				glog.V(3).Infof("Global Housekeeping(%d) took %s", t.Unix(), duration)
+				glog.Infof("Global Housekeeping(%d) took %s", t.Unix(), duration)
 			}
 		case <-quit:
 			// Quit if asked to do so.
@@ -1017,7 +1017,11 @@ func (m *manager) getContainersDiff(containerName string) (added []info.Containe
 	if !ok {
 		return nil, nil, fmt.Errorf("failed to find container %q while checking for new containers", containerName)
 	}
-	allContainers, err := cont.handler.ListContainers(container.ListRecursive)
+	contHandler := cont.handler
+	m.containersLock.RUnlock()
+	allContainers, err := contHandler.ListContainers(container.ListRecursive)
+	m.containersLock.RLock()
+
 	if err != nil {
 		return nil, nil, err
 	}
