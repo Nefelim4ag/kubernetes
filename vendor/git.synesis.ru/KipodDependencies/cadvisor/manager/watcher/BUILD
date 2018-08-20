@@ -17,8 +17,8 @@ filegroup(
     name = "all-srcs",
     srcs = [
         ":package-srcs",
-        "//vendor/github.com/google/cadvisor/manager/watcher/raw:all-srcs",
-        "//vendor/github.com/google/cadvisor/manager/watcher/rkt:all-srcs",
+        "//vendor/git.synesis.ru/KipodDependencies/cadvisor/manager/watcher/raw:all-srcs",
+        "//vendor/git.synesis.ru/KipodDependencies/cadvisor/manager/watcher/rkt:all-srcs",
     ],
     tags = ["automanaged"],
     visibility = ["//visibility:public"],
