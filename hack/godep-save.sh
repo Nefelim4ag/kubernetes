@@ -50,6 +50,10 @@ pushd "${KUBE_ROOT}" > /dev/null
      ln -s "../../staging/src/k8s.io/${repo}" "vendor/k8s.io/${repo}"
    fi
   done
+
+  # substitute google/cadvisor with git.synesis.ru fork
+  rm -rf vendor/github.com/google/cadvisor
+  ln -s ../../git.synesis.ru/KipodDependencies/cadvisor/ vendor/github.com/google/cadvisor
 popd > /dev/null
 
 # Workaround broken symlink in docker repo because godep copies the link, but not the target
