@@ -647,7 +647,7 @@ func getVolumesFromPodDir(podDir string) ([]podVolume, error) {
 			for _, volumeDir := range volumesDirInfo {
 				pluginName := volumeDir.Name()
 				volumePluginPath := path.Join(volumesDir, pluginName)
-				volumePluginDirs, err := utilfile.ReadDirNoStat(volumePluginPath)
+				volumePluginDirs, err := utilfile.ReadDirNamesNoExit(volumePluginPath)
 				if err != nil {
 					glog.Errorf("Could not read volume plugin directory %q: %v", volumePluginPath, err)
 					continue
