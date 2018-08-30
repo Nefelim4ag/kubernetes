@@ -227,6 +227,10 @@ func NoNamespaceKeyFunc(ctx genericapirequest.Context, prefix string, name strin
 	return key, nil
 }
 
+func hasInvolvedObjectName(ctx genericapirequest.Context) bool {
+	return genericapirequest.InvolvedObjectNameValue(ctx) != ""
+}
+
 // New implements RESTStorage.New.
 func (e *Store) New() runtime.Object {
 	return e.NewFunc()
@@ -300,7 +304,15 @@ func (e *Store) ListPredicate(ctx genericapirequest.Context, p storage.Selection
 		// if we cannot extract a key based on the current context, the optimization is skipped
 	}
 
-	err := e.Storage.List(ctx, e.KeyRootFunc(ctx), options.ResourceVersion, p, list)
+	// if there is involved Object name in the context, use ListAll due to key is folder + elenet prefix,
+	// not only folder name
+	var err error
+	if hasInvolvedObjectName(ctx) {
+		err = e.Storage.ListAll(ctx, e.KeyRootFunc(ctx), options.ResourceVersion, p, list)
+	} else {
+		err = e.Storage.List(ctx, e.KeyRootFunc(ctx), options.ResourceVersion, p, list)
+	}
+
 	return list, storeerr.InterpretListError(err, qualifiedResource)
 }
 
@@ -1303,14 +1315,22 @@ func (e *Store) CompleteWithOptions(options *generic.StoreOptions) error {
 	if e.KeyRootFunc == nil && e.KeyFunc == nil {
 		if isNamespaced {
 			e.KeyRootFunc = func(ctx genericapirequest.Context) string {
-				return NamespaceKeyRootFunc(ctx, prefix)
+				key := NamespaceKeyRootFunc(ctx, prefix)
+				if hasInvolvedObjectName(ctx) {
+					key = key + "/" + genericapirequest.InvolvedObjectNameValue(ctx)
+				}
+				return key
 			}
 			e.KeyFunc = func(ctx genericapirequest.Context, name string) (string, error) {
 				return NamespaceKeyFunc(ctx, prefix, name)
 			}
 		} else {
 			e.KeyRootFunc = func(ctx genericapirequest.Context) string {
-				return prefix
+				key := prefix
+				if hasInvolvedObjectName(ctx) {
+					key = key + "/" + genericapirequest.InvolvedObjectNameValue(ctx)
+				}
+				return key
 			}
 			e.KeyFunc = func(ctx genericapirequest.Context, name string) (string, error) {
 				return NoNamespaceKeyFunc(ctx, prefix, name)

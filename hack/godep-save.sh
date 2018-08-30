@@ -76,6 +76,10 @@ for repo in $(ls staging/src/k8s.io); do
   fi
 done
 
+# substitute google/cadvisor with git.synesis.ru fork
+  rm -rf vendor/github.com/google/cadvisor
+  ln -s ../../git.synesis.ru/KipodDependencies/cadvisor/ vendor/github.com/google/cadvisor
+
 # Workaround broken symlink in docker repo because godep copies the link, but
 # not the target
 rm -rf vendor/github.com/docker/docker/project/

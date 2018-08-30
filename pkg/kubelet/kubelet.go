@@ -467,6 +467,10 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		KernelMemcgNotification:  experimentalKernelMemcgNotification,
 	}
 
+	for _, ns := range kubeCfg.CriticalNamespaces {
+		kubetypes.AddCriticalNamespace(ns)
+	}
+
 	serviceIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	if kubeDeps.KubeClient != nil {
 		serviceLW := cache.NewListWatchFromClient(kubeDeps.KubeClient.CoreV1().RESTClient(), "services", metav1.NamespaceAll, fields.Everything())
@@ -699,6 +703,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 			imageService,
 			kubeDeps.ContainerManager.InternalContainerLifecycle(),
 			legacyLogProvider,
+			kubeCfg.ExperimentalCpuConversionFactor,
 		)
 		if err != nil {
 			return nil, err
@@ -1446,6 +1451,7 @@ func (kl *Kubelet) GetKubeClient() clientset.Interface {
 func (kl *Kubelet) syncPod(o syncPodOptions) error {
 	// pull out the required options
 	pod := o.pod
+
 	mirrorPod := o.mirrorPod
 	podStatus := o.podStatus
 	updateType := o.updateType

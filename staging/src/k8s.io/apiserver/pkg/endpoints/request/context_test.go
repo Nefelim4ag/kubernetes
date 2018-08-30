@@ -132,3 +132,23 @@ func TestUserAgentContext(t *testing.T) {
 		t.Fatalf("Get user agent error, Expected: %s, Actual: %s", expectedResult, result)
 	}
 }
+
+// TestInvolvedObjectNameContext validates that a Involved Object Name  can be get/set on a context object
+func TestInvolvedObjectNameContext(t *testing.T) {
+	ctx := genericapirequest.NewDefaultContext()
+	_, ok := genericapirequest.InvolvedObjectNameFrom(ctx)
+	if ok {
+		t.Fatalf("Should not be ok because there is no Involved Object Name on the context")
+	}
+
+	expectedResult := "testID"
+	ctx = genericapirequest.WithInvolvedObjectName(ctx, expectedResult)
+	result, ok := genericapirequest.InvolvedObjectNameFrom(ctx)
+	if !ok {
+		t.Fatalf("Error getting Involved Object Name")
+	}
+
+	if result != expectedResult {
+		t.Fatalf("Get Involved Object Name error, Expected: %s, Actual: %s", expectedResult, result)
+	}
+}
