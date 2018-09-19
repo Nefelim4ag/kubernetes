@@ -18,6 +18,7 @@ package daemon
 
 import (
 	"fmt"
+	"k8s.io/kubernetes/pkg/kubelet/network/calico"
 	"reflect"
 	"sort"
 	"sync"
@@ -60,8 +61,6 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
 
 	"github.com/golang/glog"
-	"k8s.io/kubernetes/pkg/controller/replicaset"
-	"k8s.io/kubernetes/pkg/kubelet/container"
 )
 
 const (
@@ -646,13 +645,10 @@ func (dsc *DaemonSetsController) deletePod(obj interface{}) {
 		return
 	}
 
-	pm, err := replicaset.TeardownNetworkPluginManager()
-	if err == nil {
-		for _, cs := range pod.Status.ContainerStatuses {
-			pm.TearDownPod(pod.Namespace, pod.Name, container.BuildContainerID("docker", cs.ContainerID))
-		}
+	if err = calico.ReleasePodNetwork(pod.Namespace, pod.Name, pod.Status.PodIP); err != nil {
+		glog.Warningf("Failed to release network for %s %s: %s", pod.Namespace, pod.Name, err)
 	} else {
-		glog.Warningf("Error initializing TearDown network plugin: %s", err)
+		glog.Infof("Successfully released network for %s %s", pod.Namespace, pod.Name)
 	}
 
 	glog.V(4).Infof("Pod %s deleted.", pod.Name)
