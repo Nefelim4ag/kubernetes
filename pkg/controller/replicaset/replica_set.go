@@ -60,7 +60,6 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/network"
-	"k8s.io/kubernetes/pkg/kubelet/network/calico"
 	"k8s.io/kubernetes/pkg/kubelet/network/cni"
 	"k8s.io/kubernetes/pkg/kubelet/network/hostport"
 	"k8s.io/kubernetes/pkg/kubelet/network/kubenet"
@@ -411,10 +410,13 @@ func (rsc *ReplicaSetController) deletePod(obj interface{}) {
 	}
 	glog.V(4).Infof("Pod %s/%s deleted through %v, timestamp %+v: %#v.", pod.Namespace, pod.Name, utilruntime.GetCaller(), pod.DeletionTimestamp, pod)
 
-	if err = calico.ReleasePodNetwork(pod.Namespace, pod.Name, pod.Status.PodIP); err != nil {
-		glog.Warningf("Failed to release network for %s %s: %s", pod.Namespace, pod.Name, err)
+	pm, err := TeardownNetworkPluginManager()
+	if err == nil {
+		for _, cs := range pod.Status.ContainerStatuses {
+			pm.TearDownPod(pod.Namespace, pod.Name, container.BuildContainerID("docker", cs.ContainerID))
+		}
 	} else {
-		glog.Infof("Successfully released network for %s %s", pod.Namespace, pod.Name)
+		glog.Warningf("Error initializing TearDown network plugin: %s", err)
 	}
 
 	rsc.expectations.DeletionObserved(rsKey, controller.PodKey(pod))
