@@ -54,6 +54,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/cm"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/nodestatus"
+	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/kubelet/util/sliceutils"
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
 	taintutil "k8s.io/kubernetes/pkg/util/taints"
@@ -1917,5 +1918,34 @@ func TestNodeStatusHasChanged(t *testing.T) {
 			assert.True(t, apiequality.Semantic.DeepEqual(originalStatusCopy, tc.originalStatus), "%s", diff.ObjectDiff(originalStatusCopy, tc.originalStatus))
 			assert.True(t, apiequality.Semantic.DeepEqual(statusCopy, tc.status), "%s", diff.ObjectDiff(statusCopy, tc.status))
 		})
+	}
+}
+
+func TestLostNodeWatchdog(t *testing.T) {
+	const evictionTimeout = 1 * time.Second
+
+	testKubelet := newTestKubelet(t, false /* controllerAttachDetachEnabled */)
+	defer testKubelet.Cleanup()
+
+	kubelet := testKubelet.kubelet
+
+	updates := make(chan interface{})
+	kubelet.updatesSourceCh = updates
+
+	kubelet.lostNodeEvictionTimeout = evictionTimeout
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
+	go kubelet.lostNodeWatchdog(stopCh)
+
+	select {
+	case <-time.After(evictionTimeout + (1 * time.Second)):
+		assert.Fail(t, "lost node watchdog is not triggered")
+	case upd := <-updates: // watch dog is triggered
+		pu, ok := upd.(kubetypes.PodUpdate)
+		assert.True(t, ok, "unexpected update")
+		assert.Equal(t, pu.Op, kubetypes.REMOVE, "unexpected operation")
+		assert.Equal(t, pu.Source, kubetypes.ApiserverSource, "unexpected source")
 	}
 }
