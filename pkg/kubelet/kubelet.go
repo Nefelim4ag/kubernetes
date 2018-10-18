@@ -514,6 +514,9 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		nodeLabels:                              nodeLabels,
 		nodeStatusUpdateFrequency:               kubeCfg.NodeStatusUpdateFrequency.Duration,
 		nodeStatusReportFrequency:               kubeCfg.NodeStatusReportFrequency.Duration,
+		nodeStatusUpdatedCh:                     make(chan struct{}),
+		updatesSourceCh:                         kubeDeps.PodConfig.Channel(kubetypes.ApiserverSource),
+		lostNodeEvictionTimeout:                 kubeCfg.LostNodeEvictionTimeout.Duration,
 		os:                                      kubeDeps.OSInterface,
 		oomWatcher:                              oomWatcher,
 		cgroupsPerQOS:                           kubeCfg.CgroupsPerQOS,
@@ -1079,6 +1082,16 @@ type Kubelet struct {
 	// nodeLeaseController claims and renews the node lease for this Kubelet
 	nodeLeaseController nodelease.Controller
 
+	// Channel to notify node status successfully updated
+	nodeStatusUpdatedCh chan struct{}
+
+	// Pod configuration source channel from kubelet/config.PodConfig.Channel()
+	// used to send REMOVE updates on node lost connection to apiserver
+	updatesSourceCh chan<- interface{}
+
+	// The grace period for deleting pods if node failed to reach apiserver.
+	lostNodeEvictionTimeout time.Duration
+
 	// Generates pod events.
 	pleg pleg.PodLifecycleEventGenerator
 
@@ -1435,6 +1448,7 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 		if utilfeature.DefaultFeatureGate.Enabled(features.NodeLease) {
 			go kl.nodeLeaseController.Run(wait.NeverStop)
 		}
+		go kl.lostNodeWatchdog(wait.NeverStop)
 	}
 	go wait.Until(kl.updateRuntimeUp, 5*time.Second, wait.NeverStop)
 
