@@ -235,6 +235,9 @@ type KubeletConfiguration struct {
 	// Maximum allowed grace period (in seconds) to use when terminating pods in response to a soft eviction threshold being met.
 	// +optional
 	EvictionMaxPodGracePeriod int32
+	// The grace period for deleting pods if node failed to reach apiserver.
+	// +optional
+	LostNodeEvictionTimeout metav1.Duration
 	// Map of signal names to quantities that defines minimum reclaims, which describe the minimum
 	// amount of a given resource the kubelet will reclaim when performing a pod eviction while
 	// that resource is under pressure. For example: {"imagefs.available": "2Gi"}

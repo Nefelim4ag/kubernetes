@@ -40,6 +40,7 @@ import (
 	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
 	"k8s.io/kubernetes/pkg/kubelet/cadvisor"
 	"k8s.io/kubernetes/pkg/kubelet/events"
+	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/kubelet/util"
 	"k8s.io/kubernetes/pkg/kubelet/util/sliceutils"
 	nodeutil "k8s.io/kubernetes/pkg/util/node"
@@ -373,6 +374,11 @@ func (kl *Kubelet) syncNodeStatus() {
 	}
 	if err := kl.updateNodeStatus(); err != nil {
 		glog.Errorf("Unable to update node status: %v", err)
+	} else {
+		select {
+		case kl.nodeStatusUpdatedCh <- struct{}{}: //status successfully updated
+		default: //skip
+		}
 	}
 }
 
@@ -426,6 +432,27 @@ func (kl *Kubelet) tryUpdateNodeStatus(tryNumber int) error {
 	// those volumes are already updated in the node's status
 	kl.volumeManager.MarkVolumesAsReportedInUse(updatedNode.Status.VolumesInUse)
 	return nil
+}
+
+// lostNodeWatchdog remove pods, if kubelet lost connection with apiserver
+func (kl *Kubelet) lostNodeWatchdog(stopCh <-chan struct{}) {
+	t := time.NewTimer(kl.lostNodeEvictionTimeout)
+
+	for {
+		select {
+		case <-kl.nodeStatusUpdatedCh:
+			t.Reset(kl.lostNodeEvictionTimeout)
+		case <-t.C:
+			update := kubetypes.PodUpdate{
+				Pods:   kl.podManager.GetPods(),
+				Op:     kubetypes.REMOVE,
+				Source: kubetypes.ApiserverSource,
+			}
+			kl.updatesSourceCh <- update
+		case <-stopCh:
+			return
+		}
+	}
 }
 
 // recordNodeStatusEvent records an event of the given type with the given
@@ -551,7 +578,7 @@ func (kl *Kubelet) actualizeCpuCount(node *v1.Node) {
 	cpuCount := node.Status.Capacity[v1.ResourceCPU]
 	milliCpuCount := (&cpuCount).MilliValue()
 
-	effectiveMilliCpuCount := resource.NewMilliQuantity(int64(float32(milliCpuCount) * factorValue),
+	effectiveMilliCpuCount := resource.NewMilliQuantity(int64(float32(milliCpuCount)*factorValue),
 		resource.DecimalSI)
 
 	node.Status.Capacity[v1.ResourceCPU] = *effectiveMilliCpuCount

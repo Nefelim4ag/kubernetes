@@ -486,4 +486,5 @@ func AddKubeletConfigFlags(fs *pflag.FlagSet, c *kubeletconfig.KubeletConfigurat
 	fs.StringVar(&c.KubeReservedCgroup, "kube-reserved-cgroup", c.KubeReservedCgroup, "Absolute name of the top level cgroup that is used to manage kubernetes components for which compute resources were reserved via '--kube-reserved' flag. Ex. '/kube-reserved'. [default='']")
 
 	fs.Float32Var(&c.ExperimentalCpuConversionFactor, "experimental-cpu-conversion-factor", c.ExperimentalCpuConversionFactor, "[Experimental] Multiply physical CPU count by this factor to calculate effective number of CPU")
+	fs.DurationVar(&c.LostNodeEvictionTimeout.Duration, "lost-node-eviction-timeout", c.LostNodeEvictionTimeout.Duration, "The grace period for deleting pods if node failed to reach apiserver")
 }

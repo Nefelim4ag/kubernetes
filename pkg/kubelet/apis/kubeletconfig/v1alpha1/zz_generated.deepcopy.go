@@ -299,6 +299,7 @@ func (in *KubeletConfiguration) DeepCopyInto(out *KubeletConfiguration) {
 		}
 	}
 	out.EvictionPressureTransitionPeriod = in.EvictionPressureTransitionPeriod
+	out.LostNodeEvictionTimeout = in.LostNodeEvictionTimeout
 	if in.EvictionMinimumReclaim != nil {
 		in, out := &in.EvictionMinimumReclaim, &out.EvictionMinimumReclaim
 		*out = make(map[string]string, len(*in))
