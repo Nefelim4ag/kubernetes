@@ -338,6 +338,9 @@ type KubeletConfiguration struct {
 	// Default: 0
 	// +optional
 	EvictionMaxPodGracePeriod int32 `json:"evictionMaxPodGracePeriod,omitempty"`
+	// The grace period for deleting pods if node failed to reach apiserver.
+	// +optional
+	LostNodeEvictionTimeout metav1.Duration
 	// Map of signal names to quantities that defines minimum reclaims, which describe the minimum
 	// amount of a given resource the kubelet will reclaim when performing a pod eviction while
 	// that resource is under pressure. For example: {"imagefs.available": "2Gi"}

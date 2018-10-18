@@ -204,4 +204,7 @@ func SetDefaults_KubeletConfiguration(obj *KubeletConfiguration) {
 	if obj.ExperimentalCpuConversionFactor <= 0 {
 		obj.ExperimentalCpuConversionFactor = 1.0
 	}
+	if obj.LostNodeEvictionTimeout.Duration <= 0 {
+		obj.LostNodeEvictionTimeout = metav1.Duration{Duration: 4*time.Minute + 30*time.Second}
+	}
 }
