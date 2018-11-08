@@ -62,7 +62,6 @@ import (
 	utilversion "k8s.io/kubernetes/pkg/util/version"
 
 	"k8s.io/kubernetes/pkg/controller/replicaset"
-	"k8s.io/kubernetes/pkg/kubelet/container"
 )
 
 const (
@@ -687,14 +686,7 @@ func (dsc *DaemonSetsController) deletePod(obj interface{}) {
 		return
 	}
 
-	pm, err := replicaset.TeardownNetworkPluginManager()
-	if err == nil {
-		for _, cs := range pod.Status.ContainerStatuses {
-			pm.TearDownPod(pod.Namespace, pod.Name, container.BuildContainerID("docker", cs.ContainerID))
-		}
-	} else {
-		glog.Warningf("Error initializing TearDown network plugin: %s", err)
-	}
+	replicaset.TeardownPodNetwork(pod)
 
 	glog.V(4).Infof("Pod %s deleted.", pod.Name)
 	dsc.expectations.DeletionObserved(dsKey)
