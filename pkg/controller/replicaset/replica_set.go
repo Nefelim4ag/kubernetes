@@ -410,14 +410,7 @@ func (rsc *ReplicaSetController) deletePod(obj interface{}) {
 	}
 	glog.V(4).Infof("Pod %s/%s deleted through %v, timestamp %+v: %#v.", pod.Namespace, pod.Name, utilruntime.GetCaller(), pod.DeletionTimestamp, pod)
 
-	pm, err := TeardownNetworkPluginManager()
-	if err == nil {
-		for _, cs := range pod.Status.ContainerStatuses {
-			pm.TearDownPod(pod.Namespace, pod.Name, container.BuildContainerID("docker", cs.ContainerID))
-		}
-	} else {
-		glog.Warningf("Error initializing TearDown network plugin: %s", err)
-	}
+	TeardownPodNetwork(pod)
 
 	rsc.expectations.DeletionObserved(rsKey, controller.PodKey(pod))
 	rsc.enqueueReplicaSet(rs)
@@ -732,6 +725,20 @@ func getPodKeys(pods []*v1.Pod) []string {
 }
 
 var tdpm *network.PluginManager
+
+func TeardownPodNetwork(pod *v1.Pod) {
+	pm, err := TeardownNetworkPluginManager()
+	if err == nil {
+		err := pm.TearDownPod(pod.Namespace, pod.Name, container.BuildContainerID("docker", ""))
+		if err == nil {
+			glog.Infof("Successfully released network for pod %s/%s IP %s", pod.Namespace, pod.Name, pod.Status.PodIP)
+		} else {
+			glog.Infof("Failed to release network for pod %s/%s IP %s: %v", pod.Namespace, pod.Name, pod.Status.PodIP, err)
+		}
+	} else {
+		glog.Warningf("Error initializing TearDown network plugin: %s", err)
+	}
+}
 
 func TeardownNetworkPluginManager() (*network.PluginManager, error) {
 	if tdpm != nil {
