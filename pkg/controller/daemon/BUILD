@@ -19,6 +19,7 @@ go_library(
         "//pkg/apis/core/v1/helper:go_default_library",
         "//pkg/controller:go_default_library",
         "//pkg/controller/daemon/util:go_default_library",
+        "//pkg/controller/replicaset:go_default_library",
         "//pkg/features:go_default_library",
         "//pkg/kubelet/types:go_default_library",
         "//pkg/util/labels:go_default_library",

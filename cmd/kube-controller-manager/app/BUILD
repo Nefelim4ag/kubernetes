@@ -18,6 +18,7 @@ go_library(
         "core.go",
         "extensions.go",
         "import_known_versions.go",
+        "network.go",
         "plugins.go",
         "policy.go",
         "rbac.go",

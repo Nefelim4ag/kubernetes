@@ -56,8 +56,10 @@ import (
 	"github.com/coreos/etcd/store"
 	"github.com/coreos/etcd/version"
 	"github.com/coreos/etcd/wal"
+
 	"github.com/coreos/go-semver/semver"
 	"github.com/coreos/pkg/capnslog"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
 )
 
@@ -378,6 +380,10 @@ func NewServer(cfg *ServerConfig) (srv *EtcdServer, err error) {
 				plog.Panicf("recovered store from snapshot error: %v", err)
 			}
 			plog.Infof("recovered store from snapshot at index %d", snapshot.Metadata.Index)
+
+			if be, err = recoverSnapshotBackend(cfg, be, *snapshot); err != nil {
+				plog.Panicf("recovering backend from snapshot error: %v", err)
+			}
 		}
 		cfg.Print()
 		if !cfg.ForceNewCluster {
@@ -437,6 +443,7 @@ func NewServer(cfg *ServerConfig) (srv *EtcdServer, err error) {
 		reqIDGen:      idutil.NewGenerator(uint16(id), time.Now()),
 		forceVersionC: make(chan struct{}),
 	}
+	serverID.With(prometheus.Labels{"server_id": id.String()}).Set(1)
 
 	srv.applyV2 = &applierV2store{store: srv.store, cluster: srv.cluster}
 
@@ -506,11 +513,55 @@ func NewServer(cfg *ServerConfig) (srv *EtcdServer, err error) {
 	return srv, nil
 }
 
+func (s *EtcdServer) adjustTicks() {
+	clusterN := len(s.cluster.Members())
+
+	// single-node fresh start, or single-node recovers from snapshot
+	if clusterN == 1 {
+		ticks := s.Cfg.ElectionTicks - 1
+		plog.Infof("%s as single-node; fast-forwarding %d ticks (election ticks %d)", s.ID(), ticks, s.Cfg.ElectionTicks)
+		s.r.advanceTicks(ticks)
+		return
+	}
+
+	if !s.Cfg.InitialElectionTickAdvance {
+		plog.Infof("skipping initial election tick advance (election tick %d)", s.Cfg.ElectionTicks)
+		return
+	}
+
+	// retry up to "rafthttp.ConnReadTimeout", which is 5-sec
+	// until peer connection reports; otherwise:
+	// 1. all connections failed, or
+	// 2. no active peers, or
+	// 3. restarted single-node with no snapshot
+	// then, do nothing, because advancing ticks would have no effect
+	waitTime := rafthttp.ConnReadTimeout
+	itv := 50 * time.Millisecond
+	for i := int64(0); i < int64(waitTime/itv); i++ {
+		select {
+		case <-time.After(itv):
+		case <-s.stopping:
+			return
+		}
+
+		peerN := s.r.transport.ActivePeers()
+		if peerN > 1 {
+			// multi-node received peer connection reports
+			// adjust ticks, in case slow leader message receive
+			ticks := s.Cfg.ElectionTicks - 2
+			plog.Infof("%s initialzed peer connection; fast-forwarding %d ticks (election ticks %d) with %d active peer(s)", s.ID(), ticks, s.Cfg.ElectionTicks, peerN)
+			s.r.advanceTicks(ticks)
+			return
+		}
+	}
+}
+
 // Start prepares and starts server in a new goroutine. It is no longer safe to
 // modify a server's fields after it has been sent to Start.
 // It also starts a goroutine to publish its server information.
 func (s *EtcdServer) Start() {
 	s.start()
+	s.goAttach(func() { s.adjustTicks() })
 	s.goAttach(func() { s.publish(s.Cfg.ReqTimeout()) })
 	s.goAttach(s.purgeFile)
 	s.goAttach(func() { monitorFileDescriptor(s.stopping) })
@@ -544,18 +595,21 @@ func (s *EtcdServer) start() {
 }
 
 func (s *EtcdServer) purgeFile() {
-	var serrc, werrc <-chan error
+	var dberrc, serrc, werrc <-chan error
 	if s.Cfg.MaxSnapFiles > 0 {
+		dberrc = fileutil.PurgeFile(s.Cfg.SnapDir(), "snap.db", s.Cfg.MaxSnapFiles, purgeFileInterval, s.done)
 		serrc = fileutil.PurgeFile(s.Cfg.SnapDir(), "snap", s.Cfg.MaxSnapFiles, purgeFileInterval, s.done)
 	}
 	if s.Cfg.MaxWALFiles > 0 {
 		werrc = fileutil.PurgeFile(s.Cfg.WALDir(), "wal", s.Cfg.MaxWALFiles, purgeFileInterval, s.done)
 	}
 	select {
-	case e := <-werrc:
-		plog.Fatalf("failed to purge wal file %v", e)
+	case e := <-dberrc:
+		plog.Fatalf("failed to purge snap db file %v", e)
 	case e := <-serrc:
 		plog.Fatalf("failed to purge snap file %v", e)
+	case e := <-werrc:
+		plog.Fatalf("failed to purge wal file %v", e)
 	case <-s.stopping:
 		return
 	}
@@ -749,14 +803,8 @@ func (s *EtcdServer) run() {
 
 func (s *EtcdServer) applyAll(ep *etcdProgress, apply *apply) {
 	s.applySnapshot(ep, apply)
-	st := time.Now()
 	s.applyEntries(ep, apply)
-	d := time.Since(st)
-	entriesNum := len(apply.entries)
-	if entriesNum != 0 && d > time.Duration(entriesNum)*warnApplyDuration {
-		plog.Warningf("apply entries took too long [%v for %d entries]", d, len(apply.entries))
-		plog.Warningf("avoid queries with large range/delete range!")
-	}
+
 	proposalsApplied.Set(float64(ep.appliedi))
 	s.applyWait.Trigger(ep.appliedi)
 	// wait for the raft routine to finish the disk writes before triggering a

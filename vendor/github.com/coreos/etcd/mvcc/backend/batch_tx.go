@@ -136,15 +136,15 @@ func (t *batchTx) UnsafeForEach(bucketName []byte, visitor func(k, v []byte) err
 // Commit commits a previous tx and begins a new writable one.
 func (t *batchTx) Commit() {
 	t.Lock()
-	defer t.Unlock()
 	t.commit(false)
+	t.Unlock()
 }
 
 // CommitAndStop commits the previous tx and do not create a new one.
 func (t *batchTx) CommitAndStop() {
 	t.Lock()
-	defer t.Unlock()
 	t.commit(true)
+	t.Unlock()
 }
 
 func (t *batchTx) Unlock() {
@@ -160,28 +160,14 @@ func (t *batchTx) commit(stop bool) {
 	// commit the last tx
 	if t.tx != nil {
 		if t.pending == 0 && !stop {
-			t.backend.mu.RLock()
-			defer t.backend.mu.RUnlock()
-
-			// batchTx.commit(true) calls *bolt.Tx.Commit, which
-			// initializes *bolt.Tx.db and *bolt.Tx.meta as nil,
-			// and subsequent *bolt.Tx.Size() call panics.
-			//
-			// This nil pointer reference panic happens when:
-			//   1. batchTx.commit(false) from newBatchTx
-			//   2. batchTx.commit(true) from stopping backend
-			//   3. batchTx.commit(false) from inflight mvcc Hash call
-			//
-			// Check if db is nil to prevent this panic
-			if t.tx.DB() != nil {
-				atomic.StoreInt64(&t.backend.size, t.tx.Size())
-			}
 			return
 		}
 		start := time.Now()
+
 		// gofail: var beforeCommit struct{}
 		err = t.tx.Commit()
 		// gofail: var afterCommit struct{}
+
 		commitDurations.Observe(time.Since(start).Seconds())
 		atomic.AddInt64(&t.backend.commits, 1)
 
@@ -202,5 +188,9 @@ func (t *batchTx) commit(stop bool) {
 	if err != nil {
 		plog.Fatalf("cannot begin tx (%s)", err)
 	}
-	atomic.StoreInt64(&t.backend.size, t.tx.Size())
+
+	size := t.tx.Size()
+	db := t.backend.db
+	atomic.StoreInt64(&t.backend.size, size)
+	atomic.StoreInt64(&t.backend.sizeInUse, size-(int64(db.Stats().FreePageN)*int64(db.Info().PageSize)))
 }

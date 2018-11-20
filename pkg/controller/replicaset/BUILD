@@ -17,6 +17,11 @@ go_library(
     deps = [
         "//pkg/api/v1/pod:go_default_library",
         "//pkg/controller:go_default_library",
+        "//pkg/kubelet/container:go_default_library",
+        "//pkg/kubelet/network:go_default_library",
+        "//pkg/kubelet/network/cni:go_default_library",
+        "//pkg/kubelet/network/hostport:go_default_library",
+        "//pkg/kubelet/network/kubenet:go_default_library",
         "//pkg/util/metrics:go_default_library",
         "//vendor/github.com/golang/glog:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",

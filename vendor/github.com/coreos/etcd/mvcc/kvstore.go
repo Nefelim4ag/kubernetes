@@ -217,7 +217,6 @@ func (s *store) txnEnd(txnID int64) error {
 	}
 	s.currentRev.sub = 0
 
-	dbTotalSize.Set(float64(s.b.Size()))
 	s.mu.Unlock()
 	return nil
 }
@@ -336,9 +335,14 @@ func init() {
 func (s *store) Hash() (uint32, int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	start := time.Now()
+
 	s.b.ForceCommit()
 
 	h, err := s.b.Hash(DefaultIgnores)
+
+	hashDurations.Observe(time.Since(start).Seconds())
 	rev := s.currentRev.main
 	return h, rev, err
 }
@@ -374,6 +378,13 @@ func (s *store) Restore(b backend.Backend) error {
 }
 
 func (s *store) restore() error {
+	reportDbTotalSizeInBytesMu.Lock()
+	reportDbTotalSizeInBytes = func() float64 { return float64(s.b.Size()) }
+	reportDbTotalSizeInBytesMu.Unlock()
+	reportDbTotalSizeInUseInBytesMu.Lock()
+	reportDbTotalSizeInUseInBytes = func() float64 { return float64(s.b.SizeInUse()) }
+	reportDbTotalSizeInUseInBytesMu.Unlock()
+
 	min, max := newRevBytes(), newRevBytes()
 	revToBytes(revision{main: 1}, min)
 	revToBytes(revision{main: math.MaxInt64, sub: math.MaxInt64}, max)

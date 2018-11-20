@@ -95,6 +95,8 @@ type raftNode struct {
 	lead  uint64
 
 	mu sync.Mutex
+
+	tickMu sync.Mutex
 	// last lead elected time
 	lt time.Time
 
@@ -129,6 +131,13 @@ type raftNode struct {
 	done    chan struct{}
 }
 
+// raft.Node does not have locks in Raft package
+func (r *raftNode) tick() {
+	r.tickMu.Lock()
+	r.Tick()
+	r.tickMu.Unlock()
+}
+
 // start prepares and starts raftNode in a new goroutine. It is no longer safe
 // to modify the fields after it has been started.
 func (r *raftNode) start(rh *raftReadyHandler) {
@@ -144,7 +153,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 		for {
 			select {
 			case <-r.ticker:
-				r.Tick()
+				r.tick()
 			case rd := <-r.Ready():
 				if rd.SoftState != nil {
 					if lead := atomic.LoadUint64(&r.lead); rd.SoftState.Lead != raft.None && lead != rd.SoftState.Lead {
@@ -162,6 +171,11 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 
 					atomic.StoreUint64(&r.lead, rd.SoftState.Lead)
 					islead = rd.RaftState == raft.StateLeader
+					if islead {
+						isLeader.Set(1)
+					} else {
+						isLeader.Set(0)
+					}
 					rh.updateLeadership()
 				}
 
@@ -279,6 +293,7 @@ func (r *raftNode) sendMessages(ms []raftpb.Message) {
 				// TODO: limit request rate.
 				plog.Warningf("failed to send out heartbeat on time (exceeded the %v timeout for %v)", r.heartbeat, exceed)
 				plog.Warningf("server is likely overloaded")
+				heartbeatSendFailures.Inc()
 			}
 		}
 	}
@@ -321,13 +336,13 @@ func (r *raftNode) resumeSending() {
 	p.Resume()
 }
 
-// advanceTicksForElection advances ticks to the node for fast election.
-// This reduces the time to wait for first leader election if bootstrapping the whole
-// cluster, while leaving at least 1 heartbeat for possible existing leader
-// to contact it.
-func advanceTicksForElection(n raft.Node, electionTicks int) {
-	for i := 0; i < electionTicks-1; i++ {
-		n.Tick()
+// advanceTicks advances ticks of Raft node.
+// This can be used for fast-forwarding election
+// ticks in multi data-center deployments, thus
+// speeding up election process.
+func (r *raftNode) advanceTicks(ticks int) {
+	for i := 0; i < ticks; i++ {
+		r.tick()
 	}
 }
 
@@ -368,8 +383,7 @@ func startNode(cfg *ServerConfig, cl *membership.RaftCluster, ids []types.ID) (i
 	raftStatusMu.Lock()
 	raftStatus = n.Status
 	raftStatusMu.Unlock()
-	advanceTicksForElection(n, c.ElectionTick)
-	return
+	return id, n, s, w
 }
 
 func restartNode(cfg *ServerConfig, snapshot *raftpb.Snapshot) (types.ID, *membership.RaftCluster, raft.Node, *raft.MemoryStorage, *wal.WAL) {
@@ -402,7 +416,6 @@ func restartNode(cfg *ServerConfig, snapshot *raftpb.Snapshot) (types.ID, *membe
 	raftStatusMu.Lock()
 	raftStatus = n.Status
 	raftStatusMu.Unlock()
-	advanceTicksForElection(n, c.ElectionTick)
 	return id, cl, n, s, w
 }
 

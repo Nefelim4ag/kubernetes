@@ -10,7 +10,6 @@ filegroup(
     srcs = [
         ":package-srcs",
         "//vendor/bitbucket.org/bertimus9/systemstat:all-srcs",
-        "//vendor/bitbucket.org/ww/goautoneg:all-srcs",
         "//vendor/cloud.google.com/go/compute/metadata:all-srcs",
         "//vendor/cloud.google.com/go/internal:all-srcs",
         "//vendor/git.synesis.ru/KipodDependencies/cadvisor/accelerators:all-srcs",

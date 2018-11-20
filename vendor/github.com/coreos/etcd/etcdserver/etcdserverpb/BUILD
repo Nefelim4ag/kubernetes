@@ -15,6 +15,7 @@ go_library(
     srcs = [
         "etcdserver.pb.go",
         "raft_internal.pb.go",
+        "raft_internal_stringer.go",
         "rpc.pb.go",
         "rpc.pb.gw.go",
     ],
