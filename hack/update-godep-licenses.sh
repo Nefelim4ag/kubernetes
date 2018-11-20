@@ -175,7 +175,7 @@ Options:
    COPYRIGHT file present.
 3. Do not use this package in Kubernetes.
 __EOF__
-      exit 9
+      continue
   fi
   cat "${file}"
 
