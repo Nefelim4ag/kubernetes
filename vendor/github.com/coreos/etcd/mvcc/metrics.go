@@ -143,8 +143,6 @@ var (
 			return reportDbTotalSizeInBytes()
 		},
 	)
-	// overridden
-
 	dbTotalSize = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Namespace: "etcd",
 		Subsystem: "mvcc",

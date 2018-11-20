@@ -17,7 +17,6 @@ package etcdserver
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/coreos/etcd/lease"
@@ -28,42 +27,41 @@ import (
 )
 
 func newBackend(cfg *ServerConfig) backend.Backend {
-	return backend.NewDefaultBackend(backendPath(cfg))
-}
-
-func backendPath(cfg *ServerConfig) string {
-	return filepath.Join(cfg.SnapDir(), "db")
+	bcfg := backend.DefaultBackendConfig()
+	bcfg.Path = cfg.backendPath()
+	if cfg.QuotaBackendBytes > 0 && cfg.QuotaBackendBytes != DefaultQuotaBytes {
+		// permit 10% excess over quota for disarm
+		bcfg.MmapSize = uint64(cfg.QuotaBackendBytes + cfg.QuotaBackendBytes/10)
+	}
+	return backend.New(bcfg)
 }
 
 // openSnapshotBackend renames a snapshot db to the current etcd db and opens it.
 func openSnapshotBackend(cfg *ServerConfig, ss *snap.Snapshotter, snapshot raftpb.Snapshot) (backend.Backend, error) {
 	snapPath, err := ss.DBFilePath(snapshot.Metadata.Index)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find database snapshot file (%v)", err)
+		return nil, fmt.Errorf("database snapshot file path error: %v", err)
 	}
-	if err := os.Rename(snapPath, backendPath(cfg)); err != nil {
-		return nil, fmt.Errorf("failed to rename database snapshot file (%v)", err)
+	if err := os.Rename(snapPath, cfg.backendPath()); err != nil {
+		return nil, fmt.Errorf("rename snapshot file error: %v", err)
 	}
 	return openBackend(cfg), nil
 }
 
 // openBackend returns a backend using the current etcd db.
 func openBackend(cfg *ServerConfig) backend.Backend {
-	fn := backendPath(cfg)
+	fn := cfg.backendPath()
 	beOpened := make(chan backend.Backend)
 	go func() {
 		beOpened <- newBackend(cfg)
 	}()
-
 	select {
 	case be := <-beOpened:
 		return be
-
-	case <-time.After(10 * time.Second):
-		plog.Warningf("another etcd process is using %q and holds the file lock, or loading backend file is taking >10 seconds", fn)
+	case <-time.After(time.Second):
+		plog.Warningf("another etcd process is using %q and holds the file lock.", fn)
 		plog.Warningf("waiting for it to exit before starting...")
 	}
-
 	return <-beOpened
 }
 

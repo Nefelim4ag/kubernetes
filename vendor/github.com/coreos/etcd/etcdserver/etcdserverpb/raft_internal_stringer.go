@@ -155,10 +155,12 @@ func (*loggableValueCompare) ProtoMessage()    {}
 // size field.
 // To preserve proto encoding of the key bytes, a faked out proto type is used here.
 type loggablePutRequest struct {
-	Key       []byte `protobuf:"bytes,1,opt,name=key,proto3"`
-	ValueSize int    `protobuf:"varint,2,opt,name=value_size,proto3"`
-	Lease     int64  `protobuf:"varint,3,opt,name=lease,proto3"`
-	PrevKv    bool   `protobuf:"varint,4,opt,name=prev_kv,proto3"`
+	Key         []byte `protobuf:"bytes,1,opt,name=key,proto3"`
+	ValueSize   int    `protobuf:"varint,2,opt,name=value_size,proto3"`
+	Lease       int64  `protobuf:"varint,3,opt,name=lease,proto3"`
+	PrevKv      bool   `protobuf:"varint,4,opt,name=prev_kv,proto3"`
+	IgnoreValue bool   `protobuf:"varint,5,opt,name=ignore_value,proto3"`
+	IgnoreLease bool   `protobuf:"varint,6,opt,name=ignore_lease,proto3"`
 }
 
 func NewLoggablePutRequest(request *PutRequest) *loggablePutRequest {
@@ -167,6 +169,8 @@ func NewLoggablePutRequest(request *PutRequest) *loggablePutRequest {
 		len(request.Value),
 		request.Lease,
 		request.PrevKv,
+		request.IgnoreValue,
+		request.IgnoreLease,
 	}
 }
 

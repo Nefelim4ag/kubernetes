@@ -41,7 +41,6 @@ go_library(
         "//vendor/github.com/coreos/etcd/mvcc/mvccpb:go_default_library",
         "//vendor/github.com/coreos/etcd/pkg/contention:go_default_library",
         "//vendor/github.com/coreos/etcd/pkg/fileutil:go_default_library",
-        "//vendor/github.com/coreos/etcd/pkg/httputil:go_default_library",
         "//vendor/github.com/coreos/etcd/pkg/idutil:go_default_library",
         "//vendor/github.com/coreos/etcd/pkg/netutil:go_default_library",
         "//vendor/github.com/coreos/etcd/pkg/pbutil:go_default_library",

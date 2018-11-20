@@ -48,7 +48,7 @@ func newUnaryInterceptor(s *etcdserver.EtcdServer) grpc.UnaryServerInterceptor {
 			return nil, rpctypes.ErrGRPCNotCapable
 		}
 
-		md, ok := metadata.FromContext(ctx)
+		md, ok := metadata.FromIncomingContext(ctx)
 		if ok {
 			if ks := md[rpctypes.MetadataRequireLeaderKey]; len(ks) > 0 && ks[0] == rpctypes.MetadataHasLeader {
 				if s.Leader() == types.ID(raft.None) {
@@ -93,7 +93,7 @@ func logUnaryRequestStats(ctx context.Context, info *grpc.UnaryServerInfo, start
 			reqContent = _req.String()
 		}
 		if _resp != nil {
-			respCount = _resp.Count
+			respCount = _resp.GetCount()
 			respSize = _resp.Size()
 		}
 	case *pb.PutResponse:
@@ -116,13 +116,13 @@ func logUnaryRequestStats(ctx context.Context, info *grpc.UnaryServerInfo, start
 			reqContent = _req.String()
 		}
 		if _resp != nil {
-			respCount = _resp.Deleted
+			respCount = _resp.GetDeleted()
 			respSize = _resp.Size()
 		}
 	case *pb.TxnResponse:
 		_req, ok := req.(*pb.TxnRequest)
 		if ok && _resp != nil {
-			if _resp.Succeeded { // determine the 'actual' count and size of request based on success or failure
+			if _resp.GetSucceeded() { // determine the 'actual' count and size of request based on success or failure
 				reqCount = int64(len(_req.GetSuccess()))
 				reqSize = 0
 				for _, r := range _req.GetSuccess() {
@@ -175,7 +175,7 @@ func newStreamInterceptor(s *etcdserver.EtcdServer) grpc.StreamServerInterceptor
 			return rpctypes.ErrGRPCNotCapable
 		}
 
-		md, ok := metadata.FromContext(ss.Context())
+		md, ok := metadata.FromIncomingContext(ss.Context())
 		if ok {
 			if ks := md[rpctypes.MetadataRequireLeaderKey]; len(ks) > 0 && ks[0] == rpctypes.MetadataHasLeader {
 				if s.Leader() == types.ID(raft.None) {
