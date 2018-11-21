@@ -15,6 +15,7 @@
 package v3rpc
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -25,9 +26,7 @@ import (
 	"github.com/coreos/etcd/raft"
 
 	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/pkg/capnslog"
-	prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"golang.org/x/net/context"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
@@ -57,23 +56,20 @@ func newUnaryInterceptor(s *etcdserver.EtcdServer) grpc.UnaryServerInterceptor {
 			}
 		}
 
-		return logUnaryInterceptor(ctx, req, info, handler)
-		// interceptors are chained manually during backporting, for better readability refer to PR #9990
+		return handler(ctx, req)
 	}
 }
 
-// logUnaryInterceptor is a gRPC server-side interceptor that prints info on incoming requests for debugging purpose
-func logUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	startTime := time.Now()
-	resp, err := prometheus.UnaryServerInterceptor(ctx, req, info, handler)
-	// interceptors are chained manually during backporting, for better readability refer to PR #9990
-	if plog.LevelAt(capnslog.DEBUG) {
-		defer logUnaryRequestStats(ctx, info, startTime, req, resp)
+func newLogUnaryInterceptor(s *etcdserver.EtcdServer) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		startTime := time.Now()
+		resp, err := handler(ctx, req)
+		defer logUnaryRequestStats(ctx, nil, info, startTime, req, resp)
+		return resp, err
 	}
-	return resp, err
 }
 
-func logUnaryRequestStats(ctx context.Context, info *grpc.UnaryServerInfo, startTime time.Time, req interface{}, resp interface{}) {
+func logUnaryRequestStats(ctx context.Context, lg *zap.Logger, info *grpc.UnaryServerInfo, startTime time.Time, req interface{}, resp interface{}) {
 	duration := time.Since(startTime)
 	remote := "No remote client info."
 	peerInfo, ok := peer.FromContext(ctx)
@@ -149,22 +145,36 @@ func logUnaryRequestStats(ctx context.Context, info *grpc.UnaryServerInfo, start
 		respSize = -1
 	}
 
-	logGenericRequestStats(startTime, duration, remote, responseType, reqCount, reqSize, respCount, respSize, reqContent)
+	logGenericRequestStats(lg, startTime, duration, remote, responseType, reqCount, reqSize, respCount, respSize, reqContent)
 }
 
-func logGenericRequestStats(startTime time.Time, duration time.Duration, remote string, responseType string,
+func logGenericRequestStats(lg *zap.Logger, startTime time.Time, duration time.Duration, remote string, responseType string,
 	reqCount int64, reqSize int, respCount int64, respSize int, reqContent string) {
-	plog.Debugf("start time = %v, "+
-		"time spent = %v, "+
-		"remote = %s, "+
-		"response type = %s, "+
-		"request count = %d, "+
-		"request size = %d, "+
-		"response count = %d, "+
-		"response size = %d, "+
-		"request content = %s",
-		startTime, duration, remote, responseType, reqCount, reqSize, respCount, respSize, reqContent,
-	)
+	if lg == nil {
+		plog.Debugf("start time = %v, "+
+			"time spent = %v, "+
+			"remote = %s, "+
+			"response type = %s, "+
+			"request count = %d, "+
+			"request size = %d, "+
+			"response count = %d, "+
+			"response size = %d, "+
+			"request content = %s",
+			startTime, duration, remote, responseType, reqCount, reqSize, respCount, respSize, reqContent,
+		)
+	} else {
+		lg.Debug("request stats",
+			zap.Time("start time", startTime),
+			zap.Duration("time spent", duration),
+			zap.String("remote", remote),
+			zap.String("response type", responseType),
+			zap.Int64("request count", reqCount),
+			zap.Int("request size", reqSize),
+			zap.Int64("response count", respCount),
+			zap.Int("response size", respSize),
+			zap.String("request content", reqContent),
+		)
+	}
 }
 
 func newStreamInterceptor(s *etcdserver.EtcdServer) grpc.StreamServerInterceptor {
@@ -199,7 +209,7 @@ func newStreamInterceptor(s *etcdserver.EtcdServer) grpc.StreamServerInterceptor
 			}
 		}
 
-		return prometheus.StreamServerInterceptor(srv, ss, info, handler)
+		return handler(srv, ss)
 	}
 }
 
