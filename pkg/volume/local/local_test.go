@@ -434,8 +434,8 @@ func TestUnsupportedPlugins(t *testing.T) {
 		t.Errorf("Deletable plugin found, expected none")
 	}
 
-	attachPlug, err := plugMgr.FindAttachablePluginByName(localVolumePluginName)
-	if err == nil && attachPlug != nil {
+	attachPlug, ok, err := plugMgr.FindAttachablePluginByName(localVolumePluginName)
+	if ok || (err == nil && attachPlug != nil) {
 		t.Errorf("Attachable plugin found, expected none")
 	}
 

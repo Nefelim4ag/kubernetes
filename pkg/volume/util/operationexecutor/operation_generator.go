@@ -72,11 +72,11 @@ func NewOperationGenerator(kubeClient clientset.Interface,
 	blkUtil volumepathhandler.BlockVolumePathHandler) OperationGenerator {
 
 	return &operationGenerator{
-		kubeClient:      kubeClient,
-		volumePluginMgr: volumePluginMgr,
-		recorder:        recorder,
+		kubeClient:                       kubeClient,
+		volumePluginMgr:                  volumePluginMgr,
+		recorder:                         recorder,
 		checkNodeCapabilitiesBeforeMount: checkNodeCapabilitiesBeforeMount,
-		blkUtil: blkUtil,
+		blkUtil:                          blkUtil,
 	}
 }
 
@@ -162,9 +162,12 @@ func (og *operationGenerator) GenerateVolumesAreAttachedFunc(
 		// For each volume plugin, pass the list of volume specs to VolumesAreAttached to check
 		// whether the volumes are still attached.
 		for pluginName, volumesSpecs := range volumesPerPlugin {
-			attachableVolumePlugin, err :=
+			attachableVolumePlugin, ok, err :=
 				og.volumePluginMgr.FindAttachablePluginByName(pluginName)
-			if err != nil || attachableVolumePlugin == nil {
+			if !ok {
+				if err == nil {
+					err = fmt.Errorf("plugin %s isn't a AttachableVolumePlugin", pluginName)
+				}
 				glog.Errorf(
 					"VolumeAreAttached.FindAttachablePluginBySpec failed for plugin %q with: %v",
 					pluginName,
@@ -215,9 +218,12 @@ func (og *operationGenerator) GenerateBulkVolumeVerifyFunc(
 	actualStateOfWorld ActualStateOfWorldAttacherUpdater) (volumetypes.GeneratedOperations, error) {
 
 	bulkVolumeVerifyFunc := func() (error, error) {
-		attachableVolumePlugin, err :=
+		attachableVolumePlugin, ok, err :=
 			og.volumePluginMgr.FindAttachablePluginByName(pluginName)
-		if err != nil || attachableVolumePlugin == nil {
+		if !ok {
+			if err == nil {
+				err = fmt.Errorf("plugin %s isn't a AttachableVolumePlugin", pluginName)
+			}
 			glog.Errorf(
 				"BulkVerifyVolume.FindAttachablePluginBySpec failed for plugin %q with: %v",
 				pluginName,
@@ -386,8 +392,13 @@ func (og *operationGenerator) GenerateDetachVolumeFunc(
 		if err != nil {
 			return volumetypes.GeneratedOperations{}, volumeToDetach.GenerateErrorDetailed("DetachVolume.SplitUniqueName failed", err)
 		}
-		attachableVolumePlugin, err = og.volumePluginMgr.FindAttachablePluginByName(pluginName)
-		if err != nil {
+
+		var ok bool
+		attachableVolumePlugin, ok, err = og.volumePluginMgr.FindAttachablePluginByName(pluginName)
+		if !ok {
+			if err == nil {
+				err = fmt.Errorf("plugin %s isn't a AttachableVolumePlugin", pluginName)
+			}
 			return volumetypes.GeneratedOperations{}, volumeToDetach.GenerateErrorDetailed("DetachVolume.FindAttachablePluginBySpec failed", err)
 		}
 	}
@@ -718,7 +729,7 @@ func (og *operationGenerator) GenerateUnmountDeviceFunc(
 	actualStateOfWorld ActualStateOfWorldMounterUpdater,
 	mounter mount.Interface) (volumetypes.GeneratedOperations, error) {
 	// Get attacher plugin
-	attachableVolumePlugin, err :=
+	attachableVolumePlugin, _, err :=
 		og.volumePluginMgr.FindAttachablePluginByName(deviceToDetach.PluginName)
 	if err != nil || attachableVolumePlugin == nil {
 		return volumetypes.GeneratedOperations{}, deviceToDetach.GenerateErrorDetailed("UnmountDevice.FindAttachablePluginBySpec failed", err)
