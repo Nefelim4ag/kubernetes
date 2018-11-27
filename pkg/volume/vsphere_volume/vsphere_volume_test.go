@@ -217,12 +217,12 @@ func TestUnsupportedCloudProvider(t *testing.T) {
 		plugMgr.InitPlugins(ProbeVolumePlugins(), nil, /* prober */
 			volumetest.NewFakeVolumeHostWithCloudProvider(tmpDir, nil, nil, tc.cloudProvider))
 
-		plug, err := plugMgr.FindAttachablePluginByName("kubernetes.io/vsphere-volume")
-		if err != nil {
+		plug, ok, _ := plugMgr.FindAttachablePluginByName("kubernetes.io/vsphere-volume")
+		if !ok {
 			t.Errorf("Can't find the plugin by name")
 		}
 
-		_, err = plug.NewAttacher()
+		_, err := plug.NewAttacher()
 		if !tc.success && err == nil {
 			t.Errorf("expected error when creating attacher due to incorrect cloud provider, but got none")
 		} else if tc.success && err != nil {
