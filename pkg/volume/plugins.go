@@ -674,15 +674,18 @@ func (pm *VolumePluginMgr) FindAttachablePluginBySpec(spec *Spec) (AttachableVol
 // Unlike the other "FindPlugin" methods, this does not return error if no
 // plugin is found.  All volumes require a mounter and unmounter, but not
 // every volume will have an attacher/detacher.
-func (pm *VolumePluginMgr) FindAttachablePluginByName(name string) (AttachableVolumePlugin, error) {
+// If plugin with specified name found, but it is not AttachableVolumePlugin,
+// return (ok = false, err = nil) to explicitly show that plugin not found,
+// but it isn't an error
+func (pm *VolumePluginMgr) FindAttachablePluginByName(name string) (plugin AttachableVolumePlugin, ok bool, err error) {
 	volumePlugin, err := pm.FindPluginByName(name)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if attachablePlugin, ok := volumePlugin.(AttachableVolumePlugin); ok {
-		return attachablePlugin, nil
+		return attachablePlugin, true, nil
 	}
-	return nil, nil
+	return nil, false, nil
 }
 
 // FindExpandablePluginBySpec fetches a persistent volume plugin by spec.
