@@ -22,7 +22,7 @@ import (
 	v3rpc "github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
 	mvccpb "github.com/coreos/etcd/mvcc/mvccpb"
-
+	"github.com/golang/glog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -286,6 +286,8 @@ func (w *watcher) Watch(ctx context.Context, key string, opts ...OpOption) Watch
 	closeCh := make(chan WatchResponse, 1)
 
 	// submit request
+	glog.V(1).Infof("LOGWATCH(%s): watcher.Watch submit request > %s", ctx.Value("watchId"), key)
+
 	select {
 	case reqc <- wr:
 		ok = true
@@ -434,10 +436,14 @@ func (w *watchGrpcStream) run() {
 
 	cancelSet := make(map[int64]struct{})
 
+	var currWreq watchRequest
+
 	for {
 		select {
 		// Watch() requested
 		case wreq := <-w.reqc:
+			currWreq = *wreq
+			glog.V(1).Infof("LOGWATCH(%s): watchGrpcStream.run Watch() requested > %s", w.ctx.Value("watchId"), currWreq.key)
 			outc := make(chan WatchResponse, 1)
 			ws := &watcherStream{
 				initReq: *wreq,
@@ -459,6 +465,7 @@ func (w *watchGrpcStream) run() {
 			}
 		// New events from the watch client
 		case pbresp := <-w.respc:
+			glog.V(1).Infof("LOGWATCH(%s): watchGrpcStream.run New events from the watch client > %s", w.ctx.Value("watchId"), currWreq.key)
 			switch {
 			case pbresp.Created:
 				// response to head of queue creation
@@ -497,6 +504,7 @@ func (w *watchGrpcStream) run() {
 			}
 		// watch client failed on Recv; spawn another if possible
 		case err := <-w.errc:
+			glog.V(1).Infof("LOGWATCH(%s): watchGrpcStream.run failed to recv; spawn another > %s", w.ctx.Value("watchId"), currWreq.key)
 			if isHaltErr(w.ctx, err) || toErr(w.ctx, err) == v3rpc.ErrNoLeader {
 				closeErr = err
 				return
@@ -509,8 +517,10 @@ func (w *watchGrpcStream) run() {
 			}
 			cancelSet = make(map[int64]struct{})
 		case <-w.ctx.Done():
+			glog.V(1).Infof("LOGWATCH(%s): watchGrpcStream.run ctx.done > %s", w.ctx.Value("watchId"), currWreq.key)
 			return
 		case ws := <-w.closingc:
+			glog.V(1).Infof("LOGWATCH(%s): watchGrpcStream.run <-w.closingc > %s", w.ctx.Value("watchId"), currWreq.key)
 			w.closeSubstream(ws)
 			delete(closing, ws)
 			if len(w.substreams)+len(w.resuming) == 0 {
@@ -563,6 +573,15 @@ func (w *watchGrpcStream) dispatchEvent(pbresp *pb.WatchResponse) bool {
 func (w *watchGrpcStream) serveWatchClient(wc pb.Watch_WatchClient) {
 	for {
 		resp, err := wc.Recv()
+
+		keys := ""
+		for _, event := range resp.Events {
+			if event.Kv != nil {
+				keys += " | " + string(event.Kv.Key)
+			}
+		}
+
+		glog.V(1).Infof("LOGWATCH(%s): watchGrpcStream.serveWatchClient received GRPC message > %v", w.ctx.Value("watchId"), keys)
 		if err != nil {
 			select {
 			case w.errc <- err:

@@ -19,6 +19,8 @@ package handlers
 import (
 	"bytes"
 	"fmt"
+	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"net/http"
 	"reflect"
 	"time"
@@ -63,6 +65,8 @@ func (w *realTimeoutFactory) TimeoutCh() (<-chan time.Time, func() bool) {
 // serveWatch handles serving requests to the server
 // TODO: the functionality in this method and in WatchServer.Serve is not cleanly decoupled.
 func serveWatch(watcher watch.Interface, scope RequestScope, req *http.Request, w http.ResponseWriter, timeout time.Duration) {
+	glog.V(1).Infof("LOGWATCH(%s) serveWatch > %s", "-", req.URL.String())
+
 	// negotiate for the stream serializer
 	serializer, err := negotiation.NegotiateOutputStreamSerializer(req, scope.Serializer)
 	if err != nil {
@@ -195,6 +199,20 @@ func (s *WatchServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		case <-timeoutCh:
 			return
 		case event, ok := <-ch:
+			ma, errMa := meta.Accessor(event.Object)
+			objName := ""
+			if errMa == nil {
+				objName = ma.GetNamespace() + "|" + ma.GetName()
+			}
+
+			glog.V(1).Infof(
+				"LOGWATCH(%s) WatchServer.ServeHTTP got event %T(%s)> %s",
+				"-",
+				event.Object,
+				objName,
+				req.URL.String(),
+			)
+
 			if !ok {
 				// End of results.
 				return
@@ -263,6 +281,7 @@ func (s *WatchServer) HandleWS(ws *websocket.Conn) {
 			s.Watching.Stop()
 			return
 		case event, ok := <-ch:
+			glog.V(1).Infof("LOGWATCH(%s) WatchServer.HandleWS got event > %s", "-", event.Object.GetObjectKind())
 			if !ok {
 				// End of results.
 				return

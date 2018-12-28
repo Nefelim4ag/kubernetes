@@ -396,12 +396,18 @@ loop:
 			case watch.Added:
 				err := r.store.Add(event.Object)
 				if err != nil {
+					glog.V(1).Infof("LOGWATCH(%s): Reflector.watchHandler Add Failed: %s> %s", "-", err, event.Object.GetObjectKind())
 					utilruntime.HandleError(fmt.Errorf("%s: unable to add watch event object (%#v) to store: %v", r.name, event.Object, err))
+				} else {
+					glog.V(1).Infof("LOGWATCH(%s): Reflector.watchHandler Added> %s", "-", event.Object.GetObjectKind())
 				}
 			case watch.Modified:
 				err := r.store.Update(event.Object)
 				if err != nil {
+					glog.V(1).Infof("LOGWATCH(%s): Reflector.watchHandler Update Failed: %s> %s", "-", err, event.Object.GetObjectKind())
 					utilruntime.HandleError(fmt.Errorf("%s: unable to update watch event object (%#v) to store: %v", r.name, event.Object, err))
+				} else {
+					glog.V(1).Infof("LOGWATCH(%s): Reflector.watchHandler Modified> %s", "-", event.Object.GetObjectKind())
 				}
 			case watch.Deleted:
 				// TODO: Will any consumers need access to the "last known
@@ -409,9 +415,13 @@ loop:
 				// to change this.
 				err := r.store.Delete(event.Object)
 				if err != nil {
+					glog.V(1).Infof("LOGWATCH(%s): Reflector.watchHandler Delete Failed: %s> %s", "-", err, event.Object.GetObjectKind())
 					utilruntime.HandleError(fmt.Errorf("%s: unable to delete watch event object (%#v) from store: %v", r.name, event.Object, err))
+				} else {
+					glog.V(1).Infof("LOGWATCH(%s): Reflector.watchHandler Deleted> %s", "-", event.Object.GetObjectKind())
 				}
 			default:
+				glog.V(1).Infof("LOGWATCH(%s): Reflector.watchHandler unable to understand watch event: %s> %s", "-", err, event.Object.GetObjectKind())
 				utilruntime.HandleError(fmt.Errorf("%s: unable to understand watch event %#v", r.name, event))
 			}
 			*resourceVersion = newResourceVersion

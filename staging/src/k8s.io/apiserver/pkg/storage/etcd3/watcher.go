@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -100,6 +101,8 @@ func (w *watcher) Watch(ctx context.Context, key string, rev int64, recursive bo
 	if recursive && !strings.HasSuffix(key, "/") {
 		key += "/"
 	}
+
+	glog.V(1).Infof("LOGWATCH(%s) (w *watcher) Watch started > %s", ctx.Value("watchId"), key)
 	wc := w.createWatchChan(ctx, key, rev, recursive, pred)
 	go wc.run()
 	return wc, nil
@@ -189,6 +192,11 @@ func (wc *watchChan) sync() error {
 // - get current objects if initialRev=0; set initialRev to current rev
 // - watch on given key and send events to process.
 func (wc *watchChan) startWatching(watchClosedCh chan struct{}) {
+	watchId := time.Now().Format("15:04:05.999999999")
+	ctx := context.WithValue(wc.ctx, "watchId", watchId)
+
+	glog.V(1).Infof("LOGWATCH(%s) wc.startWatching started > %s", ctx.Value("watchId"), wc.key)
+
 	if wc.initialRev == 0 {
 		if err := wc.sync(); err != nil {
 			glog.Errorf("failed to sync with latest state: %v", err)
@@ -200,7 +208,7 @@ func (wc *watchChan) startWatching(watchClosedCh chan struct{}) {
 	if wc.recursive {
 		opts = append(opts, clientv3.WithPrefix())
 	}
-	wch := wc.watcher.client.Watch(wc.ctx, wc.key, opts...)
+	wch := wc.watcher.client.Watch(ctx, wc.key, opts...)
 	for wres := range wch {
 		if wres.Err() != nil {
 			err := wres.Err()
@@ -210,6 +218,12 @@ func (wc *watchChan) startWatching(watchClosedCh chan struct{}) {
 			return
 		}
 		for _, e := range wres.Events {
+			glog.V(1).Infof(
+				"LOGWATCH(%s): wc.startWatching wres received for event %s > %s",
+				ctx.Value("watchId"),
+				e.Kv.Key,
+				wc.key,
+			)
 			wc.sendEvent(parseEvent(e))
 		}
 	}
@@ -235,6 +249,8 @@ func (wc *watchChan) processEvent(wg *sync.WaitGroup) {
 				glog.Warningf("Fast watcher, slow processing. Number of buffered events: %d."+
 					"Probably caused by slow dispatching events to watchers", outgoingBufSize)
 			}
+
+			glog.V(1).Infof("LOGWATCH(%s): watchChan.processEvent %q > %s", "-", e.key, wc.key)
 			// If user couldn't receive results fast enough, we also block incoming events from watcher.
 			// Because storing events in local will cause more memory usage.
 			// The worst case would be closing the fast watcher.
@@ -341,6 +357,7 @@ func (wc *watchChan) sendEvent(e *event) {
 		glog.Warningf("Fast watcher, slow processing. Number of buffered events: %d."+
 			"Probably caused by slow decoding, user not receiving fast, or other processing logic",
 			incomingBufSize)
+		glog.V(1).Infof("LOGWATCH(%s): Fast watcher, slow processing > %s", wc.ctx.Value("watchId"), wc.key)
 	}
 	select {
 	case wc.incomingEventChan <- e:
