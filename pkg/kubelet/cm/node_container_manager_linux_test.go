@@ -391,6 +391,61 @@ func TestNodeAllocatableInputValidation(t *testing.T) {
 	}
 }
 
+func TestGetCgroupConfig(t *testing.T) {
+	int64ToPtr := func(i int64) *int64 { return &i }
+	uint64ToPtr := func(i uint64) *uint64 { return &i }
+
+	tests := []struct {
+		name           string
+		resources      v1.ResourceList
+		expectedConfig *ResourceConfig
+	}{
+		{
+			name:      "resource list with memory and cpu",
+			resources: getResourceList("3", "5Gi"),
+			expectedConfig: &ResourceConfig{
+				Memory:        int64ToPtr(5368709120),
+				CpuShares:     uint64ToPtr(3072),
+				CpuQuota:      int64ToPtr(300000),
+				CpuPeriod:     uint64ToPtr(100000),
+				HugePageLimit: make(map[int64]int64),
+			},
+		},
+		{
+			name:      "resource list without memory but with cpu",
+			resources: getResourceList("3", ""),
+			expectedConfig: &ResourceConfig{
+				Memory:        nil,
+				CpuShares:     uint64ToPtr(3072),
+				CpuQuota:      int64ToPtr(300000),
+				CpuPeriod:     uint64ToPtr(100000),
+				HugePageLimit: make(map[int64]int64),
+			},
+		},
+		{
+			name:      "resource list with memory but without cpu",
+			resources: getResourceList("", "5Gi"),
+			expectedConfig: &ResourceConfig{
+				Memory:        int64ToPtr(5368709120),
+				CpuShares:     nil,
+				CpuQuota:      nil,
+				CpuPeriod:     nil,
+				HugePageLimit: make(map[int64]int64),
+			},
+		},
+		{
+			name:           "resource list is nil",
+			resources:      nil,
+			expectedConfig: nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expectedConfig, getCgroupConfig(tc.resources))
+		})
+	}
+}
+
 // getEphemeralStorageResourceList returns a ResourceList with the
 // specified ephemeral storage resource values
 func getEphemeralStorageResourceList(storage string) v1.ResourceList {
