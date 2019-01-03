@@ -575,9 +575,11 @@ func (w *watchGrpcStream) serveWatchClient(wc pb.Watch_WatchClient) {
 		resp, err := wc.Recv()
 
 		keys := ""
-		for _, event := range resp.Events {
-			if event.Kv != nil {
-				keys += " | " + string(event.Kv.Key)
+		if resp != nil {
+			for _, event := range resp.Events {
+				if event.Kv != nil {
+					keys += " | " + string(event.Kv.Key)
+				}
 			}
 		}
 

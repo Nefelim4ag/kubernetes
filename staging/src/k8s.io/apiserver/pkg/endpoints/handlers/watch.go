@@ -199,6 +199,11 @@ func (s *WatchServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		case <-timeoutCh:
 			return
 		case event, ok := <-ch:
+			if !ok {
+				// End of results.
+				return
+			}
+
 			ma, errMa := meta.Accessor(event.Object)
 			objName := ""
 			if errMa == nil {
@@ -212,11 +217,6 @@ func (s *WatchServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				objName,
 				req.URL.String(),
 			)
-
-			if !ok {
-				// End of results.
-				return
-			}
 
 			obj := event.Object
 			s.Fixup(obj)
@@ -281,11 +281,11 @@ func (s *WatchServer) HandleWS(ws *websocket.Conn) {
 			s.Watching.Stop()
 			return
 		case event, ok := <-ch:
-			glog.V(1).Infof("LOGWATCH(%s) WatchServer.HandleWS got event > %s", "-", event.Object.GetObjectKind())
 			if !ok {
 				// End of results.
 				return
 			}
+			glog.V(1).Infof("LOGWATCH(%s) WatchServer.HandleWS got event > %s", "-", event.Object.GetObjectKind())
 			obj := event.Object
 			s.Fixup(obj)
 			if err := s.EmbeddedEncoder.Encode(obj, buf); err != nil {
