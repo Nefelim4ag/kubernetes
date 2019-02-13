@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
@@ -252,7 +253,16 @@ func newStatefulSetPod(set *apps.StatefulSet, ordinal int) *v1.Pod {
 	pod.Name = getPodName(set, ordinal)
 	initIdentity(set, pod)
 	updateStorage(set, pod)
+	substituteOrdinal(pod, ordinal)
 	return pod
+}
+
+// substituteOrdinal replace %ordinal% and %index% patterns. Currently this works only for pod annotations.
+func substituteOrdinal(pod *v1.Pod, index int) {
+	rep := strings.NewReplacer("%index%", strconv.Itoa(index), "%ordinal%", strconv.Itoa(index + 1))
+	for k, v := range pod.Annotations {
+		pod.Annotations[k] = rep.Replace(v)
+	}
 }
 
 // newVersionedStatefulSetPod creates a new Pod for a StatefulSet. currentSet is the representation of the set at the
