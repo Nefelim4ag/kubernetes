@@ -19,6 +19,7 @@ package statefulset
 import (
 	"fmt"
 	"math/rand"
+	"reflect"
 	"sort"
 	"strconv"
 	"testing"
@@ -136,6 +137,25 @@ func TestUpdateIdentity(t *testing.T) {
 	updateIdentity(set, pod)
 	if !identityMatches(set, pod) {
 		t.Error("updateIdentity failed to restore the statefulSetPodName label")
+	}
+}
+
+func TestSubstituteOrdinal(t *testing.T) {
+	index := 0
+	set := newStatefulSet(3)
+	pod := newStatefulSetPod(set, index)
+	pod.Annotations["test.single"] = "test-%ordinal%-%index%"
+	pod.Annotations["test.multiple"] = "test-%ordinal%-%ordinal%%ordinal%-%index%%index%"
+
+	substituteOrdinal(pod, index)
+
+	want := map[string]string{
+		"test.single": "test-1-0",
+		"test.multiple": "test-1-11-00",
+	}
+
+	if !reflect.DeepEqual(want, pod.Annotations) {
+		t.Errorf("substitution failed. want = %+v, got = %+v", want, pod.Annotations)
 	}
 }
 
